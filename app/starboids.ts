@@ -24,20 +24,20 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
             wireframe: false,
             position: new THREE.Vector3(0, 0, 0),
             rotation: new THREE.Vector3(THREE.MathUtils.degToRad(90), 0, 0),
-            velocity: new THREE.Vector3(Math.random(), Math.random(), 0).normalize(),
+            velocity: new THREE.Vector3(Math.random() * 2 - 1, Math.random() * 2 - 1, 0).normalize(),
             speed: .02,
         }
     ]
 
-    for (var i = 0; i < 20; i++) {
+    for (var i = 0; i < 100; i++) {
         boids.push({
             size: .1,
             color: new THREE.Color('grey'),
             wireframe: true,
             position: new THREE.Vector3(Math.random() * 2, Math.random() * 2, 0),
             rotation: new THREE.Vector3(THREE.MathUtils.degToRad(90), 0, 0),
-            velocity: new THREE.Vector3(Math.random(), Math.random(), 0).normalize(),
-            speed: (Math.random() * 2 - 1) * .02,
+            velocity: new THREE.Vector3(Math.random() * 100 - 50, Math.random() * 100 - 50, 0).normalize(),
+            speed: .02,
         })
     }
 
@@ -50,6 +50,7 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
         const boidMaterial = new THREE.MeshBasicMaterial({ color: boid.color, wireframe: boid.wireframe, side: 2 });
         const boidMesh = new THREE.Mesh(boidGeometry, boidMaterial);
         boidMesh.scale.x = 1.25
+        boidMesh.position.copy(boid.position)
 
         allBoids.add(boidMesh)
     })
@@ -96,35 +97,57 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
         allBoids.children.forEach((boid, index) => {
             const myBoidObject = boids[index]
 
+            // if (myBoidObject.velocity.length() < 1) myBoidObject.velocity.multiplyScalar(1 + myBoidObject.velocity.length())
+
             // Avoidance Behavior
             const steering = new THREE.Vector3();
             const diff = new THREE.Vector3();
             const forward = myBoidObject.velocity.clone().normalize()
 
             allBoids.children.forEach((otherBoid, obi) => {
-                if (index === obi) return; //skip self
+                if (Math.abs(index - obi) < 1) return; //skip self
 
                 // check distance from self
                 diff.subVectors(otherBoid.position, boid.position);
                 const distance = diff.length()
+                const dot = forward.dot(diff.clone().normalize())
 
-                if (distance < 1 && distance > 0) {
+                const numFriendlys = 40
+                const friendlyStrength = 0.75
+                const friendlyMaxDistance = 1
+                const windDot = -0.1
+                const personalSpaceDot = -0.1
+                const personalSpaceMaxDistance = 1
+
+                if (dot > 0 && distance < friendlyMaxDistance && Math.abs(index - obi) < numFriendlys) steering.add(diff.clone().normalize().multiplyScalar(friendlyStrength * distance))
+
+                if (distance < personalSpaceMaxDistance && distance > 0) {
                     // check position relative to us using dot product
-                    const dot = forward.dot(diff.clone().normalize())
 
-                    if (dot > .5) { //for two unit vectors a dot product of .2 means the position relative to us is within a 150 degree arc of vision
+                    if (dot > personalSpaceDot) { //for two unit vectors a dot product of .5 means the position relative to us is within a 45 degree arc of vision
                         // Calculate force pushing away from the obstacle
                         const pushAway = diff.clone().negate().normalize();
 
                         // Scale force higher as distance decreases
-                        pushAway.multiplyScalar((1 - distance) / 1);
+                        pushAway.multiplyScalar((personalSpaceMaxDistance - distance) / personalSpaceMaxDistance);
                         steering.add(pushAway);
+                    }
+
+                    if (dot > windDot) { //for two unit vectors a dot product of -.1 means the position relative to us is within a 220 degree arc of vision
+                        // Calculate velocity influence
+                        const influence = boids[obi].velocity.clone();
+
+                        // Scale force higher as distance decreases
+                        influence.multiplyScalar((personalSpaceMaxDistance - distance) / personalSpaceMaxDistance);
+                        influence.multiplyScalar((personalSpaceMaxDistance - distance) / personalSpaceMaxDistance);
+                        steering.add(influence);
                     }
                 }
             })
 
+            const steeringStrength = .075
             if (steering.lengthSq() > 0) {
-                steering.normalize().multiplyScalar(.05);
+                steering.normalize().multiplyScalar(steeringStrength);
                 myBoidObject.velocity.add(steering).normalize();
             }
 
@@ -133,15 +156,16 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
             boid.rotation.z = Math.atan2(myBoidObject.velocity.y * myBoidObject.speed, myBoidObject.velocity.x * myBoidObject.speed)
 
             // bound the boids
-            if (Math.abs(boid.position.x) > 2) {
+            const bound = 5
+            if (Math.abs(boid.position.x) > bound) {
                 boid.position.x *= -1
                 boid.position.x += -Math.sign(boid.position.x) * .05
             }
-            if (Math.abs(boid.position.y) > 2) {
+            if (Math.abs(boid.position.y) > bound) {
                 boid.position.y *= -1
                 boid.position.y += -Math.sign(boid.position.y) * .05
             }
-            if (Math.abs(boid.position.z) > 2) {
+            if (Math.abs(boid.position.z) > bound) {
                 boid.position.z *= -1
                 boid.position.z += -Math.sign(boid.position.z) * .05
             }
