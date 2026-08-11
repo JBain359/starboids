@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Pane } from "tweakpane";
+import ThreeScene from "./ThreeScene";
+import { FirstPersonControls } from 'three/addons/controls/FirstPersonControls.js';
 
 interface boid {
     size: number
@@ -56,6 +58,10 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
         { min: -1, max: 1, step: .1 }
     )
     pane.addBinding(
+        behviorParams, 'personalSpaceMaxDistance',
+        { min: 0, max: 5, step: .1 }
+    )
+    pane.addBinding(
         behviorParams, 'personalSpaceDot',
         { min: -1, max: 1, step: .1 }
     )
@@ -80,7 +86,7 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
             wireframe: false,
             position: new THREE.Vector3(0, 0, 0),
             rotation: new THREE.Vector3(THREE.MathUtils.degToRad(90), 0, 0),
-            velocity: new THREE.Vector3(Math.random() * 2 - 1, Math.random() * 2 - 1, 0).normalize(),
+            velocity: new THREE.Vector3(Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1).normalize(),
             speed: .02,
         }
     ]
@@ -88,10 +94,10 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
     // add boids to the scene
     const allBoids = new THREE.Group();
     const createBoidMesh = (b: boid) => {
-        const boidGeometry = new THREE.CircleGeometry(b.size, 0);
+        const boidGeometry = new THREE.ConeGeometry(.1, .2, 3);
         const boidMaterial = new THREE.MeshBasicMaterial({ color: b.color, wireframe: b.wireframe, side: 2 });
         const boidMesh = new THREE.Mesh(boidGeometry, boidMaterial);
-        boidMesh.scale.x = 1.25
+        boidMesh.scale.y = 1.25
         boidMesh.position.copy(b.position)
 
         allBoids.add(boidMesh)
@@ -109,7 +115,7 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
         0.1,
         200
     );
-    camera.position.z = 5;
+    camera.position.z = 10;
 
     // initialize the renderer
     const renderer = new THREE.WebGLRenderer({
@@ -145,9 +151,9 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
                 size: .1,
                 color: new THREE.Color('grey'),
                 wireframe: true,
-                position: new THREE.Vector3(Math.random() * 2, Math.random() * 2, 0),
+                position: new THREE.Vector3(Math.random() * behviorParams.bound, Math.random() * behviorParams.bound, Math.random() * behviorParams.bound),
                 rotation: new THREE.Vector3(THREE.MathUtils.degToRad(90), 0, 0),
-                velocity: new THREE.Vector3(Math.random() * 100 - 50, Math.random() * 100 - 50, 0).normalize(),
+                velocity: new THREE.Vector3(Math.random() * 100 - 50, Math.random() * 100 - 50, Math.random() * 100 - 50).normalize(),
                 speed: .02,
             }
             boids.push(b)
@@ -233,7 +239,9 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
             boid.position.addScaledVector(myBoidObject.velocity, myBoidObject.speed)
             myBoidObject.position.copy(boid.position)
             boid.rotation.z = Math.atan2(myBoidObject.velocity.y * myBoidObject.speed, myBoidObject.velocity.x * myBoidObject.speed)
+            boid.rotateZ(THREE.MathUtils.degToRad(-90))
         })
+
 
         controls.update();
         renderer.render(scene, camera);
