@@ -15,6 +15,62 @@ interface boid {
 export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
     // initialize the scene
     const scene = new THREE.Scene();
+    const pane = new Pane();
+
+    const behviorParams = {
+        numBoids: 100,
+        friendliness: .4,
+        friendlyStrength: 0.75,
+        friendlinessRange: 1,
+        friendlyDot: 0,
+        windDot: -0.1,
+        personalSpaceDot: -0.1,
+        personalSpaceMaxDistance: 1,
+        bound: 5,
+        boundPadding: 1.5,
+        steeringStrength: .075
+    }
+
+    pane.addBinding(
+        behviorParams, 'numBoids',
+        { min: 0, max: 200, step: 1 }
+    )
+    pane.addBinding(
+        behviorParams, 'friendliness',
+        { min: 0, max: 1, step: .05 }
+    )
+    pane.addBinding(
+        behviorParams, 'friendlyStrength',
+        { min: 0, max: 2, step: .05 }
+    )
+    pane.addBinding(
+        behviorParams, 'friendlinessRange',
+        { min: 0, max: 5, step: .1 }
+    )
+    pane.addBinding(
+        behviorParams, 'friendlyDot',
+        { min: -1, max: 1, step: .1 }
+    )
+    pane.addBinding(
+        behviorParams, 'windDot',
+        { min: -1, max: 1, step: .1 }
+    )
+    pane.addBinding(
+        behviorParams, 'personalSpaceDot',
+        { min: -1, max: 1, step: .1 }
+    )
+    pane.addBinding(
+        behviorParams, 'bound',
+        { min: 1, max: 20, step: 1 }
+    )
+    pane.addBinding(
+        behviorParams, 'boundPadding',
+        { min: 0, max: behviorParams.bound, step: .5 }
+    )
+    pane.addBinding(
+        behviorParams, 'steeringStrength',
+        { min: -1, max: 2, step: .05 }
+    )
 
     // initialize objects
     const boids: boid[] = [
@@ -29,32 +85,21 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
         }
     ]
 
-    for (var i = 0; i < 100; i++) {
-        boids.push({
-            size: .1,
-            color: new THREE.Color('grey'),
-            wireframe: true,
-            position: new THREE.Vector3(Math.random() * 2, Math.random() * 2, 0),
-            rotation: new THREE.Vector3(THREE.MathUtils.degToRad(90), 0, 0),
-            velocity: new THREE.Vector3(Math.random() * 100 - 50, Math.random() * 100 - 50, 0).normalize(),
-            speed: .02,
-        })
-    }
-
     // add boids to the scene
     const allBoids = new THREE.Group();
-    const boidMeshes = boids.forEach((boid) => {
-
-        // create boid
-        const boidGeometry = new THREE.CircleGeometry(boid.size, 0);
-        const boidMaterial = new THREE.MeshBasicMaterial({ color: boid.color, wireframe: boid.wireframe, side: 2 });
+    const createBoidMesh = (b: boid) => {
+        const boidGeometry = new THREE.CircleGeometry(b.size, 0);
+        const boidMaterial = new THREE.MeshBasicMaterial({ color: b.color, wireframe: b.wireframe, side: 2 });
         const boidMesh = new THREE.Mesh(boidGeometry, boidMaterial);
         boidMesh.scale.x = 1.25
-        boidMesh.position.copy(boid.position)
+        boidMesh.position.copy(b.position)
 
         allBoids.add(boidMesh)
-    })
+    }
 
+    boids.forEach((boid) => {
+        createBoidMesh(boid)
+    })
     scene.add(allBoids);
 
     // initialize the camera
@@ -84,15 +129,38 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
         renderer.setSize(window.innerWidth, window.innerHeight);
     });
 
-    // initialize clock
-    const clock = new THREE.Timer()
-    let previousTime = clock.getElapsed();
+    const confirmBoidCount = () => {
+        const numBoidsWPlayer = behviorParams.numBoids + 1
+        while (numBoidsWPlayer < boids.length) {
+            boids.pop()
+            const b = allBoids.children.pop() as THREE.Mesh
+            if (!b) return;
+            b.geometry.dispose();
+            (b.material as THREE.Material).dispose()
+        }
+
+        while (numBoidsWPlayer > allBoids.children.length) {
+            // console.log(`adding boid at ${i}`)
+            const b = {
+                size: .1,
+                color: new THREE.Color('grey'),
+                wireframe: true,
+                position: new THREE.Vector3(Math.random() * 2, Math.random() * 2, 0),
+                rotation: new THREE.Vector3(THREE.MathUtils.degToRad(90), 0, 0),
+                velocity: new THREE.Vector3(Math.random() * 100 - 50, Math.random() * 100 - 50, 0).normalize(),
+                speed: .02,
+            }
+            boids.push(b)
+            createBoidMesh(b)
+        }
+        console.log(`I have ${boids.length} boids now`)
+        console.log(`There are ${allBoids.children.length} boids in the group`)
+    }
 
     // render the scene
     const renderloop = () => {
-        const currentTime = clock.getElapsed()
-        const timeDelta = currentTime - previousTime
-        console.log(timeDelta)
+
+        confirmBoidCount()
 
         allBoids.children.forEach((boid, index) => {
             const myBoidObject = boids[index]
@@ -112,63 +180,59 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
                 const distance = diff.length()
                 const dot = forward.dot(diff.clone().normalize())
 
-                const numFriendlys = 40
-                const friendlyStrength = 0.75
-                const friendlyMaxDistance = 1
-                const windDot = -0.1
-                const personalSpaceDot = -0.1
-                const personalSpaceMaxDistance = 1
+                if (dot > behviorParams.friendlyDot && distance < behviorParams.friendlinessRange && Math.abs(index - obi) < behviorParams.numBoids * behviorParams.friendliness) steering.add(diff.clone().normalize().multiplyScalar(behviorParams.friendlyStrength * distance))
 
-                if (dot > 0 && distance < friendlyMaxDistance && Math.abs(index - obi) < numFriendlys) steering.add(diff.clone().normalize().multiplyScalar(friendlyStrength * distance))
-
-                if (distance < personalSpaceMaxDistance && distance > 0) {
+                if (distance < behviorParams.personalSpaceMaxDistance && distance > 0) {
                     // check position relative to us using dot product
 
-                    if (dot > personalSpaceDot) { //for two unit vectors a dot product of .5 means the position relative to us is within a 45 degree arc of vision
+                    if (dot > behviorParams.personalSpaceDot) { //for two unit vectors a dot product of .5 means the position relative to us is within a 45 degree arc of vision
                         // Calculate force pushing away from the obstacle
                         const pushAway = diff.clone().negate().normalize();
 
                         // Scale force higher as distance decreases
-                        pushAway.multiplyScalar((personalSpaceMaxDistance - distance) / personalSpaceMaxDistance);
+                        pushAway.multiplyScalar((behviorParams.personalSpaceMaxDistance - distance) / behviorParams.personalSpaceMaxDistance);
                         steering.add(pushAway);
                     }
 
-                    if (dot > windDot) { //for two unit vectors a dot product of -.1 means the position relative to us is within a 220 degree arc of vision
+                    if (dot > behviorParams.windDot) { //for two unit vectors a dot product of -.1 means the position relative to us is within a 220 degree arc of vision
                         // Calculate velocity influence
                         const influence = boids[obi].velocity.clone();
 
                         // Scale force higher as distance decreases
-                        influence.multiplyScalar((personalSpaceMaxDistance - distance) / personalSpaceMaxDistance);
-                        influence.multiplyScalar((personalSpaceMaxDistance - distance) / personalSpaceMaxDistance);
+                        influence.multiplyScalar((behviorParams.personalSpaceMaxDistance - distance) / behviorParams.personalSpaceMaxDistance);
+                        influence.multiplyScalar((behviorParams.personalSpaceMaxDistance - distance) / behviorParams.personalSpaceMaxDistance);
                         steering.add(influence);
                     }
                 }
             })
 
-            const steeringStrength = .075
+            // avoid boundaries
+            if (behviorParams.bound - Math.abs(boid.position.x) < behviorParams.boundPadding) steering.x -= Math.sign(boid.position.x) * (behviorParams.bound - Math.abs(boid.position.x)) * 200
+            if (behviorParams.bound - Math.abs(boid.position.y) < behviorParams.boundPadding) steering.y -= Math.sign(boid.position.y) * (behviorParams.bound - Math.abs(boid.position.y)) * 200
+            if (behviorParams.bound - Math.abs(boid.position.z) < behviorParams.boundPadding) steering.z -= Math.sign(boid.position.z) * (behviorParams.bound - Math.abs(boid.position.z)) * 200
+
+            if (Math.abs(boid.position.x) > behviorParams.bound) {
+                boid.position.x *= -1
+                boid.position.x += -Math.sign(boid.position.x) * .05
+            }
+            if (Math.abs(boid.position.y) > behviorParams.bound) {
+                boid.position.y *= -1
+                boid.position.y += -Math.sign(boid.position.y) * .05
+            }
+            if (Math.abs(boid.position.z) > behviorParams.bound) {
+                boid.position.z *= -1
+                boid.position.z += -Math.sign(boid.position.z) * .05
+            }
+
+            // Apply Movement
             if (steering.lengthSq() > 0) {
-                steering.normalize().multiplyScalar(steeringStrength);
+                steering.normalize().multiplyScalar(behviorParams.steeringStrength);
                 myBoidObject.velocity.add(steering).normalize();
             }
 
             boid.position.addScaledVector(myBoidObject.velocity, myBoidObject.speed)
             myBoidObject.position.copy(boid.position)
             boid.rotation.z = Math.atan2(myBoidObject.velocity.y * myBoidObject.speed, myBoidObject.velocity.x * myBoidObject.speed)
-
-            // bound the boids
-            const bound = 5
-            if (Math.abs(boid.position.x) > bound) {
-                boid.position.x *= -1
-                boid.position.x += -Math.sign(boid.position.x) * .05
-            }
-            if (Math.abs(boid.position.y) > bound) {
-                boid.position.y *= -1
-                boid.position.y += -Math.sign(boid.position.y) * .05
-            }
-            if (Math.abs(boid.position.z) > bound) {
-                boid.position.z *= -1
-                boid.position.z += -Math.sign(boid.position.z) * .05
-            }
         })
 
         controls.update();
