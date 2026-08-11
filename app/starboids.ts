@@ -97,14 +97,14 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
             boid.rotation.z = Math.atan2(myBoidObject.velocity.y * myBoidObject.speed, myBoidObject.velocity.x * myBoidObject.speed)
 
             // bound the boids
-            if (boid.position.x > 2) {
-                boid.position.x = -2
+            if (boid.position.x > 2 || boid.position.x < -2) {
+                boid.position.x *= -1
             }
-            if (boid.position.y > 2) {
-                boid.position.y = -2
+            if (boid.position.y > 2 || boid.position.y < -2) {
+                boid.position.y *= -1
             }
-            if (boid.position.z > 2) {
-                boid.position.z = -2
+            if (boid.position.z > 2 || boid.position.z < -2) {
+                boid.position.z *= -1
             }
         })
 
