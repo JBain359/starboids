@@ -24,8 +24,8 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
             wireframe: false,
             position: new THREE.Vector3(0, 0, 0),
             rotation: new THREE.Vector3(THREE.MathUtils.degToRad(90), 0, 0),
-            velocity: new THREE.Vector3(Math.random(), Math.random(), 0),
-            speed: .01
+            velocity: new THREE.Vector3(Math.random(), Math.random(), 0).normalize(),
+            speed: .02,
         }
     ]
 
@@ -36,8 +36,8 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
             wireframe: true,
             position: new THREE.Vector3(Math.random() * 2, Math.random() * 2, 0),
             rotation: new THREE.Vector3(THREE.MathUtils.degToRad(90), 0, 0),
-            velocity: new THREE.Vector3(Math.random(), Math.random(), 0),
-            speed: (Math.random() * 2 - 1) * .01
+            velocity: new THREE.Vector3(Math.random(), Math.random(), 0).normalize(),
+            speed: (Math.random() * 2 - 1) * .02,
         })
     }
 
@@ -45,10 +45,12 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
     const allBoids = new THREE.Group();
     const boidMeshes = boids.forEach((boid) => {
 
+        // create boid
         const boidGeometry = new THREE.CircleGeometry(boid.size, 0);
-        const boidMaterial = new THREE.MeshBasicMaterial({ color: boid.color, wireframe: boid.wireframe });
+        const boidMaterial = new THREE.MeshBasicMaterial({ color: boid.color, wireframe: boid.wireframe, side: 2 });
         const boidMesh = new THREE.Mesh(boidGeometry, boidMaterial);
         boidMesh.scale.x = 1.25
+
         allBoids.add(boidMesh)
     })
 
@@ -93,18 +95,55 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
 
         allBoids.children.forEach((boid, index) => {
             const myBoidObject = boids[index]
+
+            // Avoidance Behavior
+            const steering = new THREE.Vector3();
+            const diff = new THREE.Vector3();
+            const forward = myBoidObject.velocity.clone().normalize()
+
+            allBoids.children.forEach((otherBoid, obi) => {
+                if (index === obi) return; //skip self
+
+                // check distance from self
+                diff.subVectors(otherBoid.position, boid.position);
+                const distance = diff.length()
+
+                if (distance < 1 && distance > 0) {
+                    // check position relative to us using dot product
+                    const dot = forward.dot(diff.clone().normalize())
+
+                    if (dot > .5) { //for two unit vectors a dot product of .2 means the position relative to us is within a 150 degree arc of vision
+                        // Calculate force pushing away from the obstacle
+                        const pushAway = diff.clone().negate().normalize();
+
+                        // Scale force higher as distance decreases
+                        pushAway.multiplyScalar((1 - distance) / 1);
+                        steering.add(pushAway);
+                    }
+                }
+            })
+
+            if (steering.lengthSq() > 0) {
+                steering.normalize().multiplyScalar(.05);
+                myBoidObject.velocity.add(steering).normalize();
+            }
+
             boid.position.addScaledVector(myBoidObject.velocity, myBoidObject.speed)
+            myBoidObject.position.copy(boid.position)
             boid.rotation.z = Math.atan2(myBoidObject.velocity.y * myBoidObject.speed, myBoidObject.velocity.x * myBoidObject.speed)
 
             // bound the boids
-            if (boid.position.x > 2 || boid.position.x < -2) {
+            if (Math.abs(boid.position.x) > 2) {
                 boid.position.x *= -1
+                boid.position.x += -Math.sign(boid.position.x) * .05
             }
-            if (boid.position.y > 2 || boid.position.y < -2) {
+            if (Math.abs(boid.position.y) > 2) {
                 boid.position.y *= -1
+                boid.position.y += -Math.sign(boid.position.y) * .05
             }
-            if (boid.position.z > 2 || boid.position.z < -2) {
+            if (Math.abs(boid.position.z) > 2) {
                 boid.position.z *= -1
+                boid.position.z += -Math.sign(boid.position.z) * .05
             }
         })
 
