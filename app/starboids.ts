@@ -22,7 +22,7 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
     const behviorParams = {
         numBoids: 100,
         friendliness: .4,
-        friendlyStrength: 0.75,
+        friendlyStrength: 1.5,
         friendlinessRange: 1,
         friendlyDot: 0,
         windDot: -0.1,
@@ -30,7 +30,7 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
         personalSpaceMaxDistance: 1,
         bound: 5,
         boundPadding: 1.5,
-        steeringStrength: .075
+        steeringStrength: .02
     }
 
     pane.addBinding(
@@ -78,6 +78,12 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
         { min: -1, max: 2, step: .05 }
     )
 
+    // Add bounding box
+    const arenaGeometry = new THREE.BoxGeometry(1, 1, 1, 32, 32, 32)
+    const arenaMaterial = new THREE.MeshBasicMaterial({ color: 'green', wireframe: true, side: 2 })
+    const arenaMesh = new THREE.Mesh(arenaGeometry, arenaMaterial)
+    scene.add(arenaMesh)
+
     // initialize objects
     const boids: boid[] = [
         {
@@ -106,8 +112,6 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
     boids.forEach((boid) => {
         createBoidMesh(boid)
     })
-    scene.add(allBoids);
-
     // initialize the camera
     const camera = new THREE.PerspectiveCamera(
         35,
@@ -115,7 +119,12 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
         0.1,
         200
     );
-    camera.position.z = 10;
+    const cameraBoid = allBoids.children[0]
+    camera.position.add(new THREE.Vector3(0, 0.005, 0.02))
+    camera.rotation.x = (THREE.MathUtils.degToRad(90))
+    cameraBoid.add(camera)
+
+    scene.add(allBoids);
 
     // initialize the renderer
     const renderer = new THREE.WebGLRenderer({
@@ -124,10 +133,6 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
     });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-
-    // instantiate the controls
-    const controls = new OrbitControls(camera, canvasRef.current!);
-    controls.enableDamping = true;
 
     window.addEventListener("resize", () => {
         camera.aspect = window.innerWidth / window.innerHeight;
@@ -146,12 +151,11 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
         }
 
         while (numBoidsWPlayer > allBoids.children.length) {
-            // console.log(`adding boid at ${i}`)
             const b = {
                 size: .1,
                 color: new THREE.Color('grey'),
                 wireframe: true,
-                position: new THREE.Vector3(Math.random() * behviorParams.bound, Math.random() * behviorParams.bound, Math.random() * behviorParams.bound),
+                position: new THREE.Vector3(Math.random() * behviorParams.bound * 2 - behviorParams.bound, Math.random() * behviorParams.bound * 2 - behviorParams.bound, Math.random() * behviorParams.bound * 2 - behviorParams.bound),
                 rotation: new THREE.Vector3(THREE.MathUtils.degToRad(90), 0, 0),
                 velocity: new THREE.Vector3(Math.random() * 100 - 50, Math.random() * 100 - 50, Math.random() * 100 - 50).normalize(),
                 speed: .02,
@@ -165,13 +169,12 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
 
     // render the scene
     const renderloop = () => {
+        arenaMesh.scale.setScalar(behviorParams.bound * 2)
 
         confirmBoidCount()
 
         allBoids.children.forEach((boid, index) => {
             const myBoidObject = boids[index]
-
-            // if (myBoidObject.velocity.length() < 1) myBoidObject.velocity.multiplyScalar(1 + myBoidObject.velocity.length())
 
             // Avoidance Behavior
             const steering = new THREE.Vector3();
@@ -234,16 +237,13 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
             if (steering.lengthSq() > 0) {
                 steering.normalize().multiplyScalar(behviorParams.steeringStrength);
                 myBoidObject.velocity.add(steering).normalize();
+                boid.quaternion.slerp(boid.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), myBoidObject.velocity.clone().normalize()), .000001);
             }
 
             boid.position.addScaledVector(myBoidObject.velocity, myBoidObject.speed)
             myBoidObject.position.copy(boid.position)
-            boid.rotation.z = Math.atan2(myBoidObject.velocity.y * myBoidObject.speed, myBoidObject.velocity.x * myBoidObject.speed)
-            boid.rotateZ(THREE.MathUtils.degToRad(-90))
         })
 
-
-        controls.update();
         renderer.render(scene, camera);
         window.requestAnimationFrame(renderloop);
     };
