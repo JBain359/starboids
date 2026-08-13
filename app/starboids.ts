@@ -1,8 +1,7 @@
 import * as THREE from "three";
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Pane } from "tweakpane";
-import ThreeScene from "./ThreeScene";
-import { FirstPersonControls } from 'three/addons/controls/FirstPersonControls.js';
+import { EXRLoader } from "three/examples/jsm/Addons.js";
+import { min } from "three/tsl";
 
 interface boid {
     size: number
@@ -18,65 +17,114 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
     // initialize the scene
     const scene = new THREE.Scene();
     const pane = new Pane();
+    const exrLoader = new EXRLoader();
+    const cameraPane = pane.addFolder({
+        title: 'Camera',
+        expanded: false
+    })
+    const behaviorPane = pane.addFolder({
+        title: 'Boid Behavior',
+        expanded: false
+    });
 
+    // configure options
     const behviorParams = {
-        numBoids: 100,
+        numBoids: 200,
         friendliness: .4,
-        friendlyStrength: 1.5,
-        friendlinessRange: 1,
-        friendlyDot: 0,
+        friendlyStrength: .55,
+        friendlinessRange: 2.5,
+        friendlyDot: 0.6,
         windDot: -0.1,
         personalSpaceDot: -0.1,
-        personalSpaceMaxDistance: 1,
+        personalSpaceMaxDistance: 1.5,
         bound: 5,
         boundPadding: 1.5,
         steeringStrength: .02
     }
 
-    pane.addBinding(
+    const cameraParams = {
+        position: new THREE.Vector3(0, -1, .9),
+        rotation: new THREE.Quaternion(.5, 0, 0, 1)
+    }
+
+    behaviorPane.addBinding(
         behviorParams, 'numBoids',
         { min: 0, max: 200, step: 1 }
     )
-    pane.addBinding(
+    behaviorPane.addBinding(
         behviorParams, 'friendliness',
         { min: 0, max: 1, step: .05 }
     )
-    pane.addBinding(
+    behaviorPane.addBinding(
         behviorParams, 'friendlyStrength',
         { min: 0, max: 2, step: .05 }
     )
-    pane.addBinding(
+    behaviorPane.addBinding(
         behviorParams, 'friendlinessRange',
         { min: 0, max: 5, step: .1 }
     )
-    pane.addBinding(
+    behaviorPane.addBinding(
         behviorParams, 'friendlyDot',
         { min: -1, max: 1, step: .1 }
     )
-    pane.addBinding(
+    behaviorPane.addBinding(
         behviorParams, 'windDot',
         { min: -1, max: 1, step: .1 }
     )
-    pane.addBinding(
+    behaviorPane.addBinding(
         behviorParams, 'personalSpaceMaxDistance',
         { min: 0, max: 5, step: .1 }
     )
-    pane.addBinding(
+    behaviorPane.addBinding(
         behviorParams, 'personalSpaceDot',
         { min: -1, max: 1, step: .1 }
     )
-    pane.addBinding(
+    behaviorPane.addBinding(
         behviorParams, 'bound',
         { min: 1, max: 20, step: 1 }
     )
-    pane.addBinding(
+    behaviorPane.addBinding(
         behviorParams, 'boundPadding',
         { min: 0, max: behviorParams.bound, step: .5 }
     )
-    pane.addBinding(
+    behaviorPane.addBinding(
         behviorParams, 'steeringStrength',
         { min: -1, max: 2, step: .05 }
     )
+
+    cameraPane.addBinding(
+        cameraParams, 'position',
+        {
+            x: { step: .1 },
+            y: { step: .1 },
+            z: { step: .1 },
+        }
+    )
+    cameraPane.addBinding(
+        cameraParams, 'rotation',
+        {
+            x: { step: .1 },
+            y: { step: .1 },
+            z: { step: .1 },
+            w: { step: .01 }
+        }
+    )
+
+    // exrLoader.load('./assets/lonely_road_afternoon_puresky_4k.exr', (exr) => {
+    //     console.log(exr)
+    //     exr.mapping = THREE.EquirectangularReflectionMapping;
+    //     scene.environment = exr;
+    //     // scene.background = exr
+    // })
+
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x00ff66, 1)
+    scene.add(hemiLight)
+
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1)
+    scene.add(ambientLight)
+
+    const sunLight = new THREE.DirectionalLight(0xffffff, 3)
+    scene.add(sunLight)
 
     // Add bounding box
     const arenaGeometry = new THREE.BoxGeometry(1, 1, 1, 32, 32, 32)
@@ -101,8 +149,31 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
     const allBoids = new THREE.Group();
     const createBoidMesh = (b: boid) => {
         const boidGeometry = new THREE.ConeGeometry(.1, .2, 3);
-        const boidMaterial = new THREE.MeshBasicMaterial({ color: b.color, wireframe: b.wireframe, side: 2 });
+        const boidMaterial = new THREE.MeshStandardMaterial({ color: b.color, wireframe: b.wireframe, side: 2, metalness: .1, roughness: 0 });
+        const boidWingMaterial = new THREE.MeshStandardMaterial({ color: 'grey', wireframe: b.wireframe, side: 2, metalness: .3, roughness: 0 });
+
         const boidMesh = new THREE.Mesh(boidGeometry, boidMaterial);
+        const boidMeshWingR = new THREE.Mesh(boidGeometry, boidWingMaterial);
+        const boidMeshWingL = new THREE.Mesh(boidGeometry, boidWingMaterial);
+        boidMesh.add(boidMeshWingR)
+        boidMesh.add(boidMeshWingL)
+
+
+        boidMeshWingR.scale.y = -1
+        boidMeshWingR.scale.x = .5
+        boidMeshWingR.scale.z = .25
+        boidMeshWingR.position.x = -.1
+        boidMeshWingR.position.y = -.175
+        boidMeshWingR.position.z = -.025
+
+
+        boidMeshWingL.scale.y = -1
+        boidMeshWingL.scale.x = .5
+        boidMeshWingL.scale.z = .25
+        boidMeshWingL.position.x = .1
+        boidMeshWingL.position.y = -.175
+        boidMeshWingL.position.z = -.025
+
         boidMesh.scale.y = 1.25
         boidMesh.position.copy(b.position)
 
@@ -120,9 +191,9 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
         200
     );
     const cameraBoid = allBoids.children[0]
-    camera.position.add(new THREE.Vector3(0, 0.005, 0.02))
-    camera.rotation.x = (THREE.MathUtils.degToRad(90))
+    // camera.position.add(new THREE.Vector3(0, 0.005, 0.02))
     cameraBoid.add(camera)
+    camera.position.copy(cameraBoid.position)
 
     scene.add(allBoids);
 
@@ -153,8 +224,8 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
         while (numBoidsWPlayer > allBoids.children.length) {
             const b = {
                 size: .1,
-                color: new THREE.Color('grey'),
-                wireframe: true,
+                color: new THREE.Color('blue'),
+                wireframe: false,
                 position: new THREE.Vector3(Math.random() * behviorParams.bound * 2 - behviorParams.bound, Math.random() * behviorParams.bound * 2 - behviorParams.bound, Math.random() * behviorParams.bound * 2 - behviorParams.bound),
                 rotation: new THREE.Vector3(THREE.MathUtils.degToRad(90), 0, 0),
                 velocity: new THREE.Vector3(Math.random() * 100 - 50, Math.random() * 100 - 50, Math.random() * 100 - 50).normalize(),
@@ -163,15 +234,26 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
             boids.push(b)
             createBoidMesh(b)
         }
-        console.log(`I have ${boids.length} boids now`)
-        console.log(`There are ${allBoids.children.length} boids in the group`)
     }
+
+    camera.quaternion.set(
+        cameraParams.rotation.x,
+        cameraParams.rotation.y,
+        cameraParams.rotation.z,
+        cameraParams.rotation.w
+    )
 
     // render the scene
     const renderloop = () => {
         arenaMesh.scale.setScalar(behviorParams.bound * 2)
 
         confirmBoidCount()
+
+        camera.position.set(
+            cameraParams.position.x,
+            cameraParams.position.y,
+            cameraParams.position.z
+        )
 
         allBoids.children.forEach((boid, index) => {
             const myBoidObject = boids[index]
@@ -216,9 +298,9 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
             })
 
             // avoid boundaries
-            if (behviorParams.bound - Math.abs(boid.position.x) < behviorParams.boundPadding) steering.x -= Math.sign(boid.position.x) * (behviorParams.bound - Math.abs(boid.position.x)) * 200
-            if (behviorParams.bound - Math.abs(boid.position.y) < behviorParams.boundPadding) steering.y -= Math.sign(boid.position.y) * (behviorParams.bound - Math.abs(boid.position.y)) * 200
-            if (behviorParams.bound - Math.abs(boid.position.z) < behviorParams.boundPadding) steering.z -= Math.sign(boid.position.z) * (behviorParams.bound - Math.abs(boid.position.z)) * 200
+            if (behviorParams.bound - Math.abs(boid.position.x) < behviorParams.boundPadding) steering.x -= Math.sign(boid.position.x) * (Math.abs(boid.position.x)) * 100
+            if (behviorParams.bound - Math.abs(boid.position.y) < behviorParams.boundPadding) steering.y -= Math.sign(boid.position.y) * (Math.abs(boid.position.y)) * 100
+            if (behviorParams.bound - Math.abs(boid.position.z) < behviorParams.boundPadding) steering.z -= Math.sign(boid.position.z) * (Math.abs(boid.position.z)) * 100
 
             if (Math.abs(boid.position.x) > behviorParams.bound) {
                 boid.position.x *= -1
@@ -237,7 +319,7 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
             if (steering.lengthSq() > 0) {
                 steering.normalize().multiplyScalar(behviorParams.steeringStrength);
                 myBoidObject.velocity.add(steering).normalize();
-                boid.quaternion.slerp(boid.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), myBoidObject.velocity.clone().normalize()), .000001);
+                boid.quaternion.rotateTowards(boid.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), myBoidObject.velocity.clone().normalize()), .000001);
             }
 
             boid.position.addScaledVector(myBoidObject.velocity, myBoidObject.speed)
