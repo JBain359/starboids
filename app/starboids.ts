@@ -195,11 +195,11 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
         200
     );
     const cameraBoid = allBoids.children[0]
-    // camera.position.add(new THREE.Vector3(0, 0.005, 0.02))
-    // cameraBoid.add(camera)
     camera.position.copy(cameraBoid.position)
 
-    scene.add(allBoids);
+    arenaMesh.add(allBoids)
+    arenaMesh.scale.setScalar(behaviorParams.bound * 2)
+    allBoids.scale.setScalar(1 / (behaviorParams.bound * 2))
 
     // initialize the renderer
     const renderer = new THREE.WebGLRenderer({
@@ -242,8 +242,6 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
 
     // render the scene
     const renderloop = () => {
-        arenaMesh.scale.setScalar(behaviorParams.bound * 2)
-
         confirmBoidCount()
 
         // Position the camera slightly behind and above the leader boid's direction
@@ -270,8 +268,6 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
         if (keysPressed['ArrowRight']) {
             cameraLookTarget.x += 1
         }
-
-
 
         allBoids.children.forEach((boid, index) => {
             const myBoidObject = boids[index]
