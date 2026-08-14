@@ -14,6 +14,17 @@ interface boid {
 }
 
 export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
+
+    const keysPressed: Record<string, boolean> = {};
+
+    window.addEventListener('keydown', (event) => {
+        keysPressed[event.code] = true;
+    });
+
+    window.addEventListener('keyup', (event) => {
+        keysPressed[event.code] = false;
+    });
+
     // initialize the scene
     const scene = new THREE.Scene();
     const pane = new Pane();
@@ -29,7 +40,7 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
 
     // configure options
     const behaviorParams = {
-        numBoids: 200,
+        numBoids: 100,
         friendliness: .4,
         friendlyStrength: .55,
         friendlinessRange: 2.5,
@@ -229,13 +240,6 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
         }
     }
 
-    // camera.quaternion.set(
-    //     cameraParams.rotation.x,
-    //     cameraParams.rotation.y,
-    //     cameraParams.rotation.z,
-    //     cameraParams.rotation.w
-    // )
-
     // render the scene
     const renderloop = () => {
         arenaMesh.scale.setScalar(behaviorParams.bound * 2)
@@ -252,6 +256,22 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
         // Smoothly look at the target position ahead of the boid
         const lookTarget = cameraBoid.position.clone().add(boids[0].velocity.clone().multiplyScalar(.5));
         camera.lookAt(lookTarget);
+        const cameraLookTarget = camera.worldToLocal(lookTarget.clone())
+
+        if (keysPressed['ArrowUp']) {
+            cameraLookTarget.y += 1
+        }
+        if (keysPressed['ArrowDown']) {
+            cameraLookTarget.y -= 1
+        }
+        if (keysPressed['ArrowLeft']) {
+            cameraLookTarget.x -= 1
+        }
+        if (keysPressed['ArrowRight']) {
+            cameraLookTarget.x += 1
+        }
+
+
 
         allBoids.children.forEach((boid, index) => {
             const myBoidObject = boids[index]
@@ -263,6 +283,7 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
 
             allBoids.children.forEach((otherBoid, obi) => {
                 if (Math.abs(index - obi) < 1) return; //skip self
+                // if (obi == 0) return; //dont be influenced by player
 
                 // check distance from self
                 diff.subVectors(otherBoid.position, boid.position);
@@ -301,7 +322,14 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
             if (behaviorParams.bound - Math.abs(boid.position.z) < behaviorParams.boundPadding) steering.z -= Math.sign(boid.position.z) * (Math.abs(boid.position.z)) * 100
 
             // Apply Movement
-            if (steering.lengthSq() > 0) {
+            if ((keysPressed['ArrowUp'] || keysPressed['ArrowDown'] || keysPressed['ArrowLeft'] || keysPressed['ArrowRight']) && index == 0) {
+                const playerTarget = camera.localToWorld(cameraLookTarget.clone())
+                steering.subVectors(playerTarget, lookTarget)
+                steering.normalize().multiplyScalar(behaviorParams.steeringStrength)
+                myBoidObject.velocity.add(steering).normalize();
+                boid.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), myBoidObject.velocity.clone().normalize())
+            }
+            else if (steering.lengthSq() > 0) {
                 steering.normalize().multiplyScalar(behaviorParams.steeringStrength);
                 myBoidObject.velocity.add(steering).normalize();
                 boid.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), myBoidObject.velocity.clone().normalize())
