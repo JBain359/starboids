@@ -1,9 +1,8 @@
 import * as THREE from "three";
 import { Pane } from "tweakpane";
-import { EXRLoader } from "three/examples/jsm/Addons.js";
-import { min } from "three/tsl";
 import { OrbitControls } from "three/examples/jsm/Addons.js";
 import { GLTFLoader } from "three/examples/jsm/Addons.js";
+import { velocity } from "three/tsl";
 
 interface boid {
     size: number
@@ -218,12 +217,12 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
         const boidWingL = new THREE.Mesh(boidWingGeometry, boidMaterial);
         boidWingL.position.x = -2
         boidWingL.position.y = .25
-        boidWingL.position.z = -.75
+        boidWingL.position.z = 0
 
         const boidWingR = new THREE.Mesh(boidWingGeometry, boidMaterial);
         boidWingR.position.x = 2
         boidWingR.position.y = .25
-        boidWingR.position.z = -.75
+        boidWingR.position.z = 0
         boidWingR.scale.x = -1
 
         boidMesh.add(boidWingR)
@@ -303,7 +302,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
         const targetCamPos = cameraBoid.position.clone().add(offset);
 
         // Smoothly interpolate position (dampens jitter)
-        camera.position.lerp(targetCamPos, 0.01);
+        camera.position.lerp(targetCamPos, 0.008);
 
         // Smoothly look at the target position ahead of the boid
         const lookTarget = cameraBoid.position.clone().add(boids[0].velocity.clone().multiplyScalar(.5));
@@ -379,22 +378,17 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
                 myBoidObject.velocity.add(steering).normalize();
 
                 boid.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), myBoidObject.velocity.clone().normalize())
-
-                boid.children.forEach((wing) => {
-                    wing.rotation.x = THREE.MathUtils.lerp(wing.rotation.x, myBoidObject.velocity.y * .5, .1)
-                })
             }
             else if (steering.lengthSq() > 0) {
                 steering.normalize().multiplyScalar(behaviorParams.steeringStrength);
                 myBoidObject.velocity.add(steering).normalize();
-                
-                boid.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), myBoidObject.velocity.clone().normalize())
 
-                boid.children.forEach((wing) => {
-                    wing.rotation.x = THREE.MathUtils.lerp(wing.rotation.x, myBoidObject.velocity.y * .5, .1)
-                })
+                boid.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), myBoidObject.velocity.clone().normalize())
             }
 
+            boid.children.forEach((wing) => {
+                wing.rotation.x = THREE.MathUtils.lerp(wing.rotation.x, myBoidObject.velocity.y * .5, .1)
+            })
             boid.position.addScaledVector(myBoidObject.velocity, myBoidObject.speed)
             myBoidObject.position.copy(boid.position)
         })
