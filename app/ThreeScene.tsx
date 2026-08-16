@@ -1,6 +1,7 @@
 'use client'
 import React, { useRef, useEffect } from 'react';
 import starboids from './starboids';
+import Viewer3D from './Viewer3d';
 
 export default function ThreeScene() {
     const canvasRef = useRef<HTMLCanvasElement>(null);

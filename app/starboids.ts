@@ -2,6 +2,8 @@ import * as THREE from "three";
 import { Pane } from "tweakpane";
 import { EXRLoader } from "three/examples/jsm/Addons.js";
 import { min } from "three/tsl";
+import { OrbitControls } from "three/examples/jsm/Addons.js";
+import { GLTFLoader } from "three/examples/jsm/Addons.js";
 
 interface boid {
     size: number
@@ -13,7 +15,7 @@ interface boid {
     speed: number
 }
 
-export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
+export default async function starboids(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
 
     const keysPressed: Record<string, boolean> = {};
 
@@ -28,7 +30,7 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
     // initialize the scene
     const scene = new THREE.Scene();
     const pane = new Pane();
-    const exrLoader = new EXRLoader();
+    const gltfLoader = new GLTFLoader();
     const cameraPane = pane.addFolder({
         title: 'Camera',
         expanded: false
@@ -41,7 +43,7 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
     // configure options
     const behaviorParams = {
         numBoids: 100,
-        friendliness: .4,
+        friendliness: .2,
         friendlyStrength: .55,
         friendlinessRange: 2.5,
         friendlyDot: 0.6,
@@ -121,7 +123,8 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
         }
     )
 
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x00ff66, 1)
+    // add lights
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0xffa800, 1)
     scene.add(hemiLight)
 
     const ambientLight = new THREE.AmbientLight(0xffffff, 1)
@@ -150,38 +153,55 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
     ]
 
     // add boids to the scene
+    let boidGeometry: THREE.BufferGeometry;
+    let customMaterial: THREE.Material | null = null;
+
+    try {
+        // Replace with your actual GLTF file path
+        const gltf = await gltfLoader.loadAsync('./assets/BoidCraft.gltf');
+
+        // Find the first mesh inside the GLTF hierarchy
+        let loadedMesh: THREE.Mesh | null = null;
+        gltf.scene.traverse((child) => {
+            if ((child as THREE.Mesh).isMesh && !loadedMesh) {
+                loadedMesh = child as THREE.Mesh;
+            }
+        });
+
+        if (loadedMesh) {
+            // Clone geometry so modifications won't mutate cached assets
+            boidGeometry = (loadedMesh as THREE.Mesh).geometry.clone();
+
+            // Optional: Standardize geometry center and orientation
+            boidGeometry.center();
+
+            // Use model's original material or keep your custom materials
+            customMaterial = (loadedMesh as THREE.Mesh).material;
+        } else {
+            boidGeometry = new THREE.ConeGeometry(0.1, 0.2, 3);
+        }
+    } catch (err) {
+        console.warn("Failed to load GLTF model, falling back to ConeGeometry", err);
+        boidGeometry = new THREE.ConeGeometry(0.1, 0.2, 3);
+    }
+
     const allBoids = new THREE.Group();
     const createBoidMesh = (b: boid) => {
-        const boidGeometry = new THREE.ConeGeometry(.1, .2, 3);
-        const boidMaterial = new THREE.MeshStandardMaterial({ color: b.color, wireframe: b.wireframe, side: 2, metalness: .1, roughness: 0 });
-        const boidWingMaterial = new THREE.MeshStandardMaterial({ color: 'grey', wireframe: b.wireframe, side: 2, metalness: .3, roughness: 0 });
+        // Standard default material if model material isn't used
+        const boidMaterial = customMaterial ?? new THREE.MeshStandardMaterial({
+            color: b.color,
+            wireframe: b.wireframe,
+            metalness: 0.1,
+            roughness: 0.2
+        });
 
         const boidMesh = new THREE.Mesh(boidGeometry, boidMaterial);
-        const boidMeshWingR = new THREE.Mesh(boidGeometry, boidWingMaterial);
-        const boidMeshWingL = new THREE.Mesh(boidGeometry, boidWingMaterial);
-        boidMesh.add(boidMeshWingR)
-        boidMesh.add(boidMeshWingL)
 
+        // Adjust scale according to imported model dimensions
+        boidMesh.scale.setScalar(b.size);
+        boidMesh.position.copy(b.position);
 
-        boidMeshWingR.scale.y = -1
-        boidMeshWingR.scale.x = .5
-        boidMeshWingR.scale.z = .25
-        boidMeshWingR.position.x = -.1
-        boidMeshWingR.position.y = -.175
-        boidMeshWingR.position.z = -.025
-
-
-        boidMeshWingL.scale.y = -1
-        boidMeshWingL.scale.x = .5
-        boidMeshWingL.scale.z = .25
-        boidMeshWingL.position.x = .1
-        boidMeshWingL.position.y = -.175
-        boidMeshWingL.position.z = -.025
-
-        boidMesh.scale.y = 1.25
-        boidMesh.position.copy(b.position)
-
-        allBoids.add(boidMesh)
+        allBoids.add(boidMesh);
     }
 
     boids.forEach((boid) => {
@@ -209,6 +229,9 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
+    const orbitControls = new OrbitControls(camera, renderer.domElement)
+    orbitControls.enableDamping = true;
+
     window.addEventListener("resize", () => {
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
@@ -221,8 +244,8 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
             boids.pop()
             const b = allBoids.children.pop() as THREE.Mesh
             if (!b) return;
-            b.geometry.dispose();
-            (b.material as THREE.Material).dispose()
+            // b.geometry.dispose();
+            // (b.material as THREE.Material).dispose()
         }
 
         while (numBoidsWPlayer > allBoids.children.length) {
@@ -323,18 +346,19 @@ export default function starboids(canvasRef: React.RefObject<HTMLCanvasElement |
                 steering.subVectors(playerTarget, lookTarget)
                 steering.normalize().multiplyScalar(behaviorParams.steeringStrength)
                 myBoidObject.velocity.add(steering).normalize();
-                boid.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), myBoidObject.velocity.clone().normalize())
+                boid.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), myBoidObject.velocity.clone().normalize())
             }
             else if (steering.lengthSq() > 0) {
                 steering.normalize().multiplyScalar(behaviorParams.steeringStrength);
                 myBoidObject.velocity.add(steering).normalize();
-                boid.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), myBoidObject.velocity.clone().normalize())
+                boid.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), myBoidObject.velocity.clone().normalize())
             }
 
             boid.position.addScaledVector(myBoidObject.velocity, myBoidObject.speed)
             myBoidObject.position.copy(boid.position)
         })
 
+        // orbitControls.update();
         renderer.render(scene, camera);
         window.requestAnimationFrame(renderloop);
     };
