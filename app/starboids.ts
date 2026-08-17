@@ -2,7 +2,6 @@ import * as THREE from "three";
 import { Pane } from "tweakpane";
 import { OrbitControls } from "three/examples/jsm/Addons.js";
 import { GLTFLoader } from "three/examples/jsm/Addons.js";
-import { velocity } from "three/tsl";
 
 interface boid {
     size: number
@@ -12,6 +11,13 @@ interface boid {
     rotation: THREE.Vector3
     velocity: THREE.Vector3
     speed: number
+}
+
+interface StarBody {
+    size: number
+    color: THREE.Color
+    emissiveColor: THREE.Color
+    position: THREE.Vector3
 }
 
 export default async function starboids(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
@@ -51,12 +57,13 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
         personalSpaceMaxDistance: 1.5,
         bound: 5,
         boundPadding: 1.5,
-        steeringStrength: .02
+        steeringStrength: .02,
+        speed: .05
     }
 
     const cameraParams = {
-        position: new THREE.Vector3(0, -1, .9),
-        rotation: new THREE.Quaternion(.5, 0, 0, 1)
+        trailing: 0.008,
+        offset: new THREE.Vector3(0, -.25, 0)
     }
 
     behaviorPane.addBinding(
@@ -103,22 +110,26 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
         behaviorParams, 'steeringStrength',
         { min: -1, max: 2, step: .05 }
     )
+    behaviorPane.addBinding(
+        behaviorParams, 'speed',
+        { min: 0, max: 1, step: .05 }
+    )
 
     cameraPane.addBinding(
-        cameraParams, 'position',
+        cameraParams, 'trailing',
         {
-            x: { step: .1 },
-            y: { step: .1 },
-            z: { step: .1 },
+            min: .0005,
+            max: 1,
+            step: .0005
         }
     )
+
     cameraPane.addBinding(
-        cameraParams, 'rotation',
+        cameraParams, 'offset',
         {
-            x: { step: .1 },
-            y: { step: .1 },
-            z: { step: .1 },
-            w: { step: .01 }
+            x: { min: -1, max: 1, step: .05 },
+            y: { min: -1, max: 1, step: .05 },
+            z: { min: -1, max: 1, step: .05 }
         }
     )
 
@@ -147,7 +158,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
             position: new THREE.Vector3(0, 0, 0),
             rotation: new THREE.Vector3(THREE.MathUtils.degToRad(90), 0, 0),
             velocity: new THREE.Vector3(Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1).normalize(),
-            speed: .02,
+            speed: behaviorParams.speed,
         }
     ]
 
@@ -155,7 +166,6 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
     let boidChassisGeometry: THREE.BufferGeometry;
     let boidChassisMaterial: THREE.Material | null = null;
     let boidWingGeometry: THREE.BufferGeometry;
-    let boidWingMaterial: THREE.Material | null = null;
 
     try {
         // Replace with your actual GLTF file path
@@ -193,8 +203,6 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
             boidWingGeometry = (loadedWingMesh as THREE.Mesh).geometry.clone();
 
             boidWingGeometry.center();
-
-            boidWingMaterial = (loadedWingMesh as THREE.Mesh).material as THREE.Material<THREE.MaterialEventMap>;
         } else {
             boidChassisGeometry = new THREE.ConeGeometry(0.1, 0.2, 3);
         }
@@ -274,8 +282,8 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
             boids.pop()
             const b = allBoids.children.pop() as THREE.Mesh
             if (!b) return;
-            // b.geometry.dispose();
-            // (b.material as THREE.Material).dispose()
+            b.geometry.dispose();
+            (b.material as THREE.Material).dispose()
         }
 
         while (numBoidsWPlayer > allBoids.children.length) {
@@ -283,10 +291,10 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
                 size: .1,
                 color: new THREE.Color('blue'),
                 wireframe: false,
-                position: new THREE.Vector3(Math.random() * behaviorParams.bound * 2 - behaviorParams.bound, Math.random() * behaviorParams.bound * 2 - behaviorParams.bound, Math.random() * behaviorParams.bound * 2 - behaviorParams.bound),
+                position: new THREE.Vector3(Math.random() * behaviorParams.bound * 2 - behaviorParams.bound, Math.random() * behaviorParams.bound * 2 - behaviorParams.bound, Math.random() * behaviorParams.bound * 2 - behaviorParams.bound).add(cameraBoid.position),
                 rotation: new THREE.Vector3(THREE.MathUtils.degToRad(90), 0, 0),
                 velocity: new THREE.Vector3(Math.random() * 100 - 50, Math.random() * 100 - 50, Math.random() * 100 - 50).normalize(),
-                speed: .02,
+                speed: behaviorParams.speed,
             }
             boids.push(b)
             createBoidMesh(b)
@@ -298,11 +306,11 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
         confirmBoidCount()
 
         // Position the camera slightly behind and above the leader boid's direction
-        const offset = boids[0].velocity.clone().multiplyScalar(-.05).add(new THREE.Vector3(0, -.25, 0));
+        const offset = boids[0].velocity.clone().multiplyScalar(-.05).add(cameraParams.offset);
         const targetCamPos = cameraBoid.position.clone().add(offset);
 
         // Smoothly interpolate position (dampens jitter)
-        camera.position.lerp(targetCamPos, 0.008);
+        camera.position.lerp(targetCamPos, cameraParams.trailing);
 
         // Smoothly look at the target position ahead of the boid
         const lookTarget = cameraBoid.position.clone().add(boids[0].velocity.clone().multiplyScalar(.5));
@@ -389,7 +397,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
             boid.children.forEach((wing) => {
                 wing.rotation.x = THREE.MathUtils.lerp(wing.rotation.x, myBoidObject.velocity.y * .5, .1)
             })
-            boid.position.addScaledVector(myBoidObject.velocity, myBoidObject.speed)
+            boid.position.addScaledVector(myBoidObject.velocity, behaviorParams.speed)
             myBoidObject.position.copy(boid.position)
         })
 
