@@ -3,7 +3,7 @@ import { Pane } from "tweakpane";
 import { OrbitControls } from "three/examples/jsm/Addons.js";
 import { GLTFLoader } from "three/examples/jsm/Addons.js";
 
-interface boid {
+interface Boid {
     size: number
     color: THREE.Color
     wireframe: boolean
@@ -150,7 +150,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
     scene.add(arenaMesh)
 
     // initialize objects
-    const boids: boid[] = [
+    const boids: Boid[] = [
         {
             size: .1,
             color: new THREE.Color(0xffa800),
@@ -212,7 +212,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
     }
 
     const allBoids = new THREE.Group();
-    const createBoidMesh = (b: boid) => {
+    const createBoidMesh = (b: Boid) => {
         // Standard default material if model material isn't used
         const boidMaterial = boidChassisMaterial ?? new THREE.MeshStandardMaterial({
             color: b.color,
