@@ -207,7 +207,10 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
 
     try {
         // Replace with your actual GLTF file path
-        const chassis = await gltfLoader.loadAsync('./assets/BoidCraft_Chassis.gltf');
+        const [chassis, wing] = await Promise.all([
+            gltfLoader.loadAsync('./assets/BoidCraft_Chassis.gltf'),
+            gltfLoader.loadAsync('./assets/BoidCraft_Wing.gltf')
+        ])
 
         // Find the first mesh inside the GLTF hierarchy
         let loadedChassisMesh: THREE.Mesh | null = null;
@@ -229,8 +232,6 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
         } else {
             boidChassisGeometry = new THREE.ConeGeometry(0.1, 0.2, 3);
         }
-
-        const wing = await gltfLoader.loadAsync('./assets/BoidCraft_Wing.gltf')
         let loadedWingMesh: THREE.Mesh | null = null
         wing.scene.traverse((child) => {
             if ((child as THREE.Mesh).isMesh && !loadedWingMesh) {
@@ -242,7 +243,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
 
             boidWingGeometry.center();
         } else {
-            boidChassisGeometry = new THREE.ConeGeometry(0.1, 0.2, 3);
+            boidWingGeometry = new THREE.ConeGeometry(0.1, 0.2, 3);
         }
     } catch (err) {
         console.warn("Failed to load GLTF model, falling back to ConeGeometry", err);
@@ -252,11 +253,12 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
     const allBoids = new THREE.Group();
     const createBoidMesh = (b: Boid) => {
         // Standard default material if model material isn't used
-        const boidMaterial = boidChassisMaterial ?? new THREE.MeshStandardMaterial({
+        const boidMaterial = new THREE.MeshStandardMaterial({
             color: b.color,
             wireframe: b.wireframe,
-            metalness: 1,
-            roughness: 0
+            metalness: .6,
+            roughness: 0,
+            side: 2
         });
 
         const boidMesh = new THREE.Mesh(boidChassisGeometry, boidMaterial);
@@ -269,7 +271,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
         boidWingR.position.x = 2
         boidWingR.position.y = .25
         boidWingR.position.z = 0
-        boidWingR.scale.x = -1
+        boidWingR.scale.set(-1, 1, 1)
 
         boidMesh.add(boidWingR)
         boidMesh.add(boidWingL)
@@ -317,9 +319,8 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
 
     scene.add(allBoids)
     scene.add(allStarBodies)
-    // arenaMesh.scale.setScalar(behaviorParams.bound * 2)
-    // allBoids.scale.setScalar(1 / (behaviorParams.bound * 2))
-    // allStarBodies.scale.setScalar(1 / (behaviorParams.bound * 2))
+    arenaMesh.scale.setScalar(behaviorParams.bound * 2)
+    scene.add(arenaMesh)
 
 
     // initialize the renderer
@@ -352,7 +353,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
         while (numBoidsWPlayer > allBoids.children.length) {
             const b = {
                 size: .1,
-                color: new THREE.Color('blue'),
+                color: new THREE.Color('white'),
                 wireframe: false,
                 position: new THREE.Vector3(Math.random() * behaviorParams.bound * 2 - behaviorParams.bound, Math.random() * behaviorParams.bound * 2 - behaviorParams.bound, Math.random() * behaviorParams.bound * 2 - behaviorParams.bound).add(cameraBoid.position),
                 rotation: new THREE.Vector3(THREE.MathUtils.degToRad(90), 0, 0),
@@ -482,13 +483,14 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
                 steering.normalize().multiplyScalar(behaviorParams.steeringStrength)
                 myBoidObject.velocity.add(steering).normalize();
 
-                boid.quaternion.setFromUnitVectors(facingUser, myBoidObject.velocity.clone().normalize())
             }
             else if (steering.lengthSq() > 0) {
                 steering.normalize().multiplyScalar(behaviorParams.steeringStrength);
                 myBoidObject.velocity.add(steering).normalize();
+            }
 
-                boid.quaternion.setFromUnitVectors(facingUser, myBoidObject.velocity.clone().normalize())
+            if (myBoidObject.velocity.lengthSq() > 0) {
+                boid.quaternion.setFromUnitVectors(facingUser, myBoidObject.velocity);
             }
 
             boid.children.forEach((wing) => {
