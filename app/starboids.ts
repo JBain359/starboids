@@ -174,6 +174,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
             position: new THREE.Vector3(0, 0, 0),
             lightIntensity: 100,
             lightRange: 40,
+            speed: 1,
             orbitingBodies: [
                 {
                     size: .3,
