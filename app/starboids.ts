@@ -20,6 +20,7 @@ interface StarBody {
     position: THREE.Vector3
     lightIntensity: number
     lightRange: number
+    speed: number
     orbitingBodies: StarBody[]
 }
 
@@ -150,7 +151,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
     const arenaGeometry = new THREE.BoxGeometry(1, 1, 1, 32, 32, 32)
     const arenaMaterial = new THREE.MeshBasicMaterial({ color: 'green', wireframe: true, side: 2 })
     const arenaMesh = new THREE.Mesh(arenaGeometry, arenaMaterial)
-    scene.add(arenaMesh)
+    // scene.add(arenaMesh)
 
     // initialize objects
     const boids: Boid[] = [
@@ -181,6 +182,17 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
                     position: new THREE.Vector3(1, 1, 1),
                     lightIntensity: 100,
                     lightRange: 40,
+                    speed: .01,
+                    orbitingBodies: []
+                },
+                {
+                    size: .5,
+                    color: new THREE.Color(0xff00ff),
+                    emissiveColor: new THREE.Color(0xff00ff),
+                    position: new THREE.Vector3(1, 3, 1),
+                    lightIntensity: 100,
+                    lightRange: 40,
+                    speed: .04,
                     orbitingBodies: []
                 }
             ]
@@ -302,11 +314,11 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
     const cameraBoid = allBoids.children[0]
     camera.position.copy(cameraBoid.position)
 
-    arenaMesh.add(allBoids)
-    arenaMesh.add(allStarBodies)
-    arenaMesh.scale.setScalar(behaviorParams.bound * 2)
-    allBoids.scale.setScalar(1 / (behaviorParams.bound * 2))
-    allStarBodies.scale.setScalar(1 / (behaviorParams.bound * 2))
+    scene.add(allBoids)
+    scene.add(allStarBodies)
+    // arenaMesh.scale.setScalar(behaviorParams.bound * 2)
+    // allBoids.scale.setScalar(1 / (behaviorParams.bound * 2))
+    // allStarBodies.scale.setScalar(1 / (behaviorParams.bound * 2))
 
 
     // initialize the renderer
@@ -352,6 +364,13 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
     }
 
     // render the scene
+
+    //initialize some repeated vectors
+    const orbitAxis = new THREE.Vector3()
+    const steering = new THREE.Vector3();
+    const diff = new THREE.Vector3();
+    const forward = new THREE.Vector3();
+    const facingUser = new THREE.Vector3(0, 0, 1)
     const renderloop = () => {
         confirmBoidCount()
 
@@ -388,10 +407,10 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
                 const childVector = myStarBodyObject.orbitingBodies[ci].position.clone()
 
                 //calculate the rotation axis using the cross product
-                const v = new THREE.Vector3().crossVectors(childVector, new THREE.Vector3(0, 0, 1)).normalize()
+                orbitAxis.crossVectors(childVector, new THREE.Vector3(0, 0, 1)).normalize()
 
                 // Move mesh about its orbit
-                child.position.applyAxisAngle(v, .01)
+                child.position.applyAxisAngle(orbitAxis, myStarBodyObject.orbitingBodies[ci].speed)
             })
         })
 
@@ -399,9 +418,9 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
             const myBoidObject = boids[index]
 
             // Avoidance Behavior
-            const steering = new THREE.Vector3();
-            const diff = new THREE.Vector3();
-            const forward = myBoidObject.velocity.clone().normalize()
+            steering.set(0, 0, 0)
+            diff.set(0, 0, 0)
+            forward.copy(myBoidObject.velocity.clone().normalize())
 
             allStarBodies.children.forEach((body, sbi) => {
                 const myStarBodyObject = starBodies[sbi]
@@ -462,13 +481,13 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
                 steering.normalize().multiplyScalar(behaviorParams.steeringStrength)
                 myBoidObject.velocity.add(steering).normalize();
 
-                boid.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), myBoidObject.velocity.clone().normalize())
+                boid.quaternion.setFromUnitVectors(facingUser, myBoidObject.velocity.clone().normalize())
             }
             else if (steering.lengthSq() > 0) {
                 steering.normalize().multiplyScalar(behaviorParams.steeringStrength);
                 myBoidObject.velocity.add(steering).normalize();
 
-                boid.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), myBoidObject.velocity.clone().normalize())
+                boid.quaternion.setFromUnitVectors(facingUser, myBoidObject.velocity.clone().normalize())
             }
 
             boid.children.forEach((wing) => {
