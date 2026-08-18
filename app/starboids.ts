@@ -170,7 +170,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
             size: 1,
             color: new THREE.Color(0xffa800),
             emissiveColor: new THREE.Color(0xffa800),
-            position: new THREE.Vector3(5, 5, 5),
+            position: new THREE.Vector3(0, 0, 0),
             lightIntensity: 100,
             lightRange: 40,
             orbitingBodies: [
@@ -178,7 +178,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
                     size: .3,
                     color: new THREE.Color(0xffffff),
                     emissiveColor: new THREE.Color(0xffffff),
-                    position: new THREE.Vector3(1.5, 1.5, 1.5),
+                    position: new THREE.Vector3(1, 1, 1),
                     lightIntensity: 100,
                     lightRange: 40,
                     orbitingBodies: []
@@ -379,6 +379,21 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
         if (keysPressed['ArrowRight']) {
             cameraLookTarget.x += 1
         }
+
+        // Rotate orbiting bodies about starbodies
+        allStarBodies.children.forEach((body, index) => {
+            const myStarBodyObject = starBodies[index]
+
+            body.children.filter((c) => (c as THREE.Mesh).isMesh).forEach((child, ci) => {
+                const childVector = myStarBodyObject.orbitingBodies[ci].position.clone()
+
+                //calculate the rotation axis using the cross product
+                const v = new THREE.Vector3().crossVectors(childVector, new THREE.Vector3(0, 0, 1)).normalize()
+
+                // Move mesh about its orbit
+                child.position.applyAxisAngle(v, .01)
+            })
+        })
 
         allBoids.children.forEach((boid, index) => {
             const myBoidObject = boids[index]
