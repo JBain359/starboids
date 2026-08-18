@@ -12,6 +12,7 @@ interface Boid {
     rotation: THREE.Vector3
     velocity: THREE.Vector3
     speed: number
+
 }
 
 interface StarBody {
@@ -23,6 +24,10 @@ interface StarBody {
     lightRange: number
     speed: number
     orbitingBodies: StarBody[]
+    stars?: {
+        numStars: number
+        starRange: number
+    }
 }
 
 export default async function starboids(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
@@ -178,6 +183,10 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
             lightIntensity: 100,
             lightRange: 40,
             speed: 1,
+            stars: {
+                numStars: 500,
+                starRange: 10
+            },
             orbitingBodies: [
                 {
                     size: .3,
@@ -299,6 +308,12 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
         const starLight = new THREE.PointLight(body.emissiveColor, body.lightIntensity, body.lightRange)
         starLight.position.copy(body.position)
 
+        //add stars
+        if (body.stars) {
+            const stars = getStarPoints({ numStars: body.stars?.numStars, r: body.stars?.starRange });
+            bodyMesh.add(stars)
+        }
+
         bodyMesh.add(starLight)
         body.orbitingBodies.forEach((orb) => {
             createStarBody(orb, bodyMesh)
@@ -308,10 +323,6 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
     starBodies.forEach((body) => {
         createStarBody(body, allStarBodies)
     })
-
-    //add stars
-    const stars = getStarPoints({ r: 10 });
-
 
     // initialize the camera
     const camera = new THREE.PerspectiveCamera(
@@ -325,8 +336,6 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
 
     scene.add(allBoids)
     scene.add(allStarBodies)
-    scene.add(stars)
-    // scene.add(arenaMesh)
 
 
     // initialize the renderer
