@@ -18,6 +18,9 @@ interface StarBody {
     color: THREE.Color
     emissiveColor: THREE.Color
     position: THREE.Vector3
+    lightIntensity: number
+    lightRange: number
+    orbitingBodies: StarBody[]
 }
 
 export default async function starboids(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
@@ -62,7 +65,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
     }
 
     const cameraParams = {
-        trailing: 0.008,
+        trailing: 0.024,
         offset: new THREE.Vector3(0, -.25, 0)
     }
 
@@ -162,6 +165,28 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
         }
     ]
 
+    const starBodies: StarBody[] = [
+        {
+            size: 1,
+            color: new THREE.Color(0xffa800),
+            emissiveColor: new THREE.Color(0xffa800),
+            position: new THREE.Vector3(5, 5, 5),
+            lightIntensity: 100,
+            lightRange: 40,
+            orbitingBodies: [
+                {
+                    size: .3,
+                    color: new THREE.Color(0xffffff),
+                    emissiveColor: new THREE.Color(0xffffff),
+                    position: new THREE.Vector3(1.5, 1.5, 1.5),
+                    lightIntensity: 100,
+                    lightRange: 40,
+                    orbitingBodies: []
+                }
+            ]
+        }
+    ]
+
     // add boids to the scene
     let boidChassisGeometry: THREE.BufferGeometry;
     let boidChassisMaterial: THREE.Material | null = null;
@@ -217,7 +242,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
         const boidMaterial = boidChassisMaterial ?? new THREE.MeshStandardMaterial({
             color: b.color,
             wireframe: b.wireframe,
-            metalness: .7,
+            metalness: 1,
             roughness: 0
         });
 
@@ -245,6 +270,28 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
     boids.forEach((boid) => {
         createBoidMesh(boid)
     })
+
+    const allStarBodies = new THREE.Group();
+    const createStarBody = (body: StarBody, group: THREE.Object3D) => {
+        const bodyMaterial = new THREE.MeshStandardMaterial({ color: body.color, emissive: body.color, emissiveIntensity: 1000 });
+        const bodyGeometry = new THREE.SphereGeometry(body.size, 8, 8);
+        const bodyMesh = new THREE.Mesh(bodyGeometry, bodyMaterial)
+        bodyMesh.position.copy(body.position)
+
+        const starLight = new THREE.PointLight(body.emissiveColor, body.lightIntensity, body.lightRange)
+        starLight.position.copy(body.position)
+
+        bodyMesh.add(starLight)
+        body.orbitingBodies.forEach((orb) => {
+            createStarBody(orb, bodyMesh)
+        })
+        group.add(bodyMesh)
+    }
+    starBodies.forEach((body) => {
+        createStarBody(body, allStarBodies)
+    })
+
+
     // initialize the camera
     const camera = new THREE.PerspectiveCamera(
         35,
@@ -256,8 +303,11 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
     camera.position.copy(cameraBoid.position)
 
     arenaMesh.add(allBoids)
+    arenaMesh.add(allStarBodies)
     arenaMesh.scale.setScalar(behaviorParams.bound * 2)
     allBoids.scale.setScalar(1 / (behaviorParams.bound * 2))
+    allStarBodies.scale.setScalar(1 / (behaviorParams.bound * 2))
+
 
     // initialize the renderer
     const renderer = new THREE.WebGLRenderer({
@@ -337,6 +387,18 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
             const steering = new THREE.Vector3();
             const diff = new THREE.Vector3();
             const forward = myBoidObject.velocity.clone().normalize()
+
+            allStarBodies.children.forEach((body, sbi) => {
+                const myStarBodyObject = starBodies[sbi]
+                diff.subVectors(body.position, boid.position);
+                const distance = diff.length()
+                if (distance < myStarBodyObject.size * 5) {
+                    const pushAway = diff.clone().negate().normalize()
+
+                    pushAway.multiplyScalar((myStarBodyObject.size * 5 - distance) / myStarBodyObject.size * 1.5);
+                    steering.add(pushAway);
+                }
+            })
 
             allBoids.children.forEach((otherBoid, obi) => {
                 if (Math.abs(index - obi) < 1) return; //skip self
