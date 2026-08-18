@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { Pane } from "tweakpane";
 import { OrbitControls } from "three/examples/jsm/Addons.js";
 import { GLTFLoader } from "three/examples/jsm/Addons.js";
+import getStarPoints from "./starfield";
 
 interface Boid {
     size: number
@@ -147,11 +148,13 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
     const sunLight = new THREE.DirectionalLight(0xffffff, 3)
     scene.add(sunLight)
 
+
+
     // Add bounding box
     const arenaGeometry = new THREE.BoxGeometry(1, 1, 1, 32, 32, 32)
     const arenaMaterial = new THREE.MeshBasicMaterial({ color: 'green', wireframe: true, side: 2 })
     const arenaMesh = new THREE.Mesh(arenaGeometry, arenaMaterial)
-    // scene.add(arenaMesh)
+    arenaMesh.scale.setScalar(behaviorParams.bound * 2)
 
     // initialize objects
     const boids: Boid[] = [
@@ -306,6 +309,9 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
         createStarBody(body, allStarBodies)
     })
 
+    //add stars
+    const stars = getStarPoints({ r: 10 });
+
 
     // initialize the camera
     const camera = new THREE.PerspectiveCamera(
@@ -319,8 +325,8 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
 
     scene.add(allBoids)
     scene.add(allStarBodies)
-    arenaMesh.scale.setScalar(behaviorParams.bound * 2)
-    scene.add(arenaMesh)
+    scene.add(stars)
+    // scene.add(arenaMesh)
 
 
     // initialize the renderer
