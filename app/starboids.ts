@@ -1,7 +1,8 @@
 import * as THREE from "three";
 import { Pane } from "tweakpane";
-import { OrbitControls } from "three/examples/jsm/Addons.js";
+import { HDRLoader, OrbitControls } from "three/examples/jsm/Addons.js";
 import { GLTFLoader } from "three/examples/jsm/Addons.js";
+import { EXRLoader } from "three/examples/jsm/Addons.js";
 import getStarPoints from "./starfield";
 
 interface Boid {
@@ -12,7 +13,7 @@ interface Boid {
     rotation: THREE.Vector3
     velocity: THREE.Vector3
     speed: number
-
+    nearestStarBody?: StarBody
 }
 
 interface StarBody {
@@ -57,23 +58,24 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
 
     // configure options
     const behaviorParams = {
-        numBoids: 100,
-        friendliness: .2,
-        friendlyStrength: .55,
-        friendlinessRange: 2.5,
+        numBoids: 200,
+        friendliness: .35,
+        friendlyStrength: 1,
+        friendlinessRange: 5,
         friendlyDot: 0.6,
         windDot: -0.1,
         personalSpaceDot: -0.1,
-        personalSpaceMaxDistance: 1.5,
-        bound: 5,
+        personalSpaceMaxDistance: 5,
+        bound: 10,
         boundPadding: 1.5,
         steeringStrength: .02,
         speed: .05
     }
 
     const cameraParams = {
-        trailing: 0.024,
-        offset: new THREE.Vector3(0, -.25, 0)
+        trailing: 0.03,
+        offset: new THREE.Vector3(0, -.25, 0),
+        cinematicMode: false
     }
 
     behaviorPane.addBinding(
@@ -102,7 +104,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
     )
     behaviorPane.addBinding(
         behaviorParams, 'personalSpaceMaxDistance',
-        { min: 0, max: 5, step: .1 }
+        { min: 0, max: 10, step: .1 }
     )
     behaviorPane.addBinding(
         behaviorParams, 'personalSpaceDot',
@@ -143,16 +145,16 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
         }
     )
 
+    cameraPane.addBinding(
+        cameraParams, 'cinematicMode',
+    )
+
     // add lights
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0xffa800, 1)
-    scene.add(hemiLight)
+    const exrLoader = new EXRLoader();
 
-    const ambientLight = new THREE.AmbientLight(0xffffff, 1)
-    scene.add(ambientLight)
-
-    const sunLight = new THREE.DirectionalLight(0xffffff, 3)
-    scene.add(sunLight)
-
+    const exr = await exrLoader.loadAsync('./assets/lonely_road_afternoon_puresky_4k.exr')
+    exr.mapping = THREE.EquirectangularReflectionMapping
+    scene.environment = exr
 
 
     // Add bounding box
@@ -170,7 +172,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
             position: new THREE.Vector3(0, 0, 0),
             rotation: new THREE.Vector3(THREE.MathUtils.degToRad(90), 0, 0),
             velocity: new THREE.Vector3(Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1).normalize(),
-            speed: behaviorParams.speed,
+            speed: behaviorParams.speed
         }
     ]
 
@@ -216,6 +218,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
     let boidChassisGeometry: THREE.BufferGeometry;
     let boidChassisMaterial: THREE.Material | null = null;
     let boidWingGeometry: THREE.BufferGeometry;
+    let boidWingMaterial: THREE.Material | null = null;
 
     try {
         // Replace with your actual GLTF file path
@@ -254,6 +257,8 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
             boidWingGeometry = (loadedWingMesh as THREE.Mesh).geometry.clone();
 
             boidWingGeometry.center();
+
+            boidWingMaterial = (loadedWingMesh as THREE.Mesh).material as THREE.Material<THREE.MaterialEventMap>;
         } else {
             boidWingGeometry = new THREE.ConeGeometry(0.1, 0.2, 3);
         }
@@ -300,12 +305,20 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
 
     const allStarBodies = new THREE.Group();
     const createStarBody = (body: StarBody, group: THREE.Object3D) => {
-        const bodyMaterial = new THREE.MeshStandardMaterial({ color: body.color, emissive: body.color, emissiveIntensity: 1000 });
+        const bodyMaterial = new THREE.MeshStandardMaterial({ color: body.color, emissive: body.color, emissiveIntensity: body.lightIntensity / 100, metalness: .6, roughness: .5 });
         const bodyGeometry = new THREE.SphereGeometry(body.size, 8, 8);
         const bodyMesh = new THREE.Mesh(bodyGeometry, bodyMaterial)
+        bodyMesh.userData.orbitable = true;
+
+        const atmoMaterial = new THREE.MeshStandardMaterial({ color: body.color, emissive: body.color, emissiveIntensity: body.lightIntensity / 100, transparent: true, opacity: .5 });
+        const atmoGeometry = new THREE.SphereGeometry(body.size * 1.1, 32, 32);
+        const atmoMesh = new THREE.Mesh(atmoGeometry, atmoMaterial)
+
+        bodyMesh.add(atmoMesh)
+
         bodyMesh.position.copy(body.position)
 
-        const starLight = new THREE.PointLight(body.emissiveColor, body.lightIntensity, body.lightRange)
+        const starLight = new THREE.PointLight(body.emissiveColor, body.lightIntensity * 2, body.lightRange)
         starLight.position.copy(body.position)
 
         //add stars
@@ -380,6 +393,66 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
         }
     }
 
+    const generateRandomStarBody = (position: THREE.Vector3, size: number, moons: number = 0): StarBody => {
+        const bodySize = Math.random() * size / 2
+        const color = new THREE.Color(
+            Math.random(),
+            Math.random(),
+            Math.random()
+        )
+        const lightIntensity = Math.random() * 100
+        const lightRange = Math.random() * 100
+
+        return {
+            size: bodySize,
+            color: color,
+            emissiveColor: color,
+            position: position,
+            lightIntensity: lightIntensity,
+            lightRange: lightRange,
+            speed: Math.random() * .02 - .04,
+            stars: moons > 0 ? { numStars: 500, starRange: 10 } : { numStars: 0, starRange: 0 },
+            orbitingBodies: Array.from(
+                { length: moons },
+                () => generateRandomStarBody(
+                    new THREE.Vector3(
+                        Math.random(),
+                        Math.random(),
+                        Math.random()
+                    ).multiplyScalar(bodySize).addScalar(Math.random() * 5),
+                    bodySize
+                )
+            )
+        }
+    }
+
+    const expandStarBodies = (star: StarBody) => {
+        // generate three random vectors of a certain length
+        const numNewStars = 2 * Math.random()
+        const pos = []
+        for (let i = 0; i < numNewStars; i++) {
+            const newStarDistance = (5 * Math.random() - 5) + behaviorParams.bound * 2
+            pos.push(
+                new THREE.Vector3(
+                    2 * Math.random() - 1,
+                    2 * Math.random() - 1,
+                    2 * Math.random() - 1
+                )
+                    .normalize()
+                    .multiplyScalar(newStarDistance)
+                    .add(star.position)
+            )
+        }
+
+        // create random starbodies there
+        pos.forEach((p) => {
+            const newStarBody = generateRandomStarBody(p, 3, 3 * Math.random())
+            starBodies.push(newStarBody)
+
+            createStarBody(newStarBody, allStarBodies)
+        })
+    }
+
     // render the scene
 
     //initialize some repeated vectors
@@ -388,6 +461,8 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
     const diff = new THREE.Vector3();
     const forward = new THREE.Vector3();
     const facingUser = new THREE.Vector3(0, 0, 1)
+    const zeroVector = new THREE.Vector3();
+    const exploredStarBodies: StarBody[] = []
     const renderloop = () => {
         confirmBoidCount()
 
@@ -420,7 +495,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
         allStarBodies.children.forEach((body, index) => {
             const myStarBodyObject = starBodies[index]
 
-            body.children.filter((c) => (c as THREE.Mesh).isMesh).forEach((child, ci) => {
+            body.children.filter((c) => (c as THREE.Mesh).userData.orbitable).forEach((child, ci) => {
                 const childVector = myStarBodyObject.orbitingBodies[ci].position.clone()
 
                 //calculate the rotation axis using the cross product
@@ -431,6 +506,8 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
             })
         })
 
+        let focusedStarBody = boids[0].nearestStarBody
+
         allBoids.children.forEach((boid, index) => {
             const myBoidObject = boids[index]
 
@@ -439,10 +516,17 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
             diff.set(0, 0, 0)
             forward.copy(myBoidObject.velocity.clone().normalize())
 
+            let starDistance = 999999;
             allStarBodies.children.forEach((body, sbi) => {
                 const myStarBodyObject = starBodies[sbi]
                 diff.subVectors(body.position, boid.position);
                 const distance = diff.length()
+
+                if (distance < starDistance) {
+                    starDistance = distance
+                    myBoidObject.nearestStarBody = myStarBodyObject
+                }
+
                 if (distance < myStarBodyObject.size * 5) {
                     const pushAway = diff.clone().negate().normalize()
 
@@ -456,7 +540,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
                 // if (obi == 0) return; //dont be influenced by player
 
                 // check distance from self
-                diff.subVectors(otherBoid.position, boid.position);
+                diff.subVectors(otherBoid.position.clone().add(boids[obi].velocity), boid.position);
                 const distance = diff.length()
                 const dot = forward.dot(diff.clone().normalize())
 
@@ -470,6 +554,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
                         const pushAway = diff.clone().negate().normalize();
 
                         // Scale force higher as distance decreases
+                        pushAway.multiplyScalar((behaviorParams.personalSpaceMaxDistance - distance) / behaviorParams.personalSpaceMaxDistance);
                         pushAway.multiplyScalar((behaviorParams.personalSpaceMaxDistance - distance) / behaviorParams.personalSpaceMaxDistance);
                         steering.add(pushAway);
                     }
@@ -487,9 +572,9 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
             })
 
             // avoid boundaries
-            if (behaviorParams.bound - Math.abs(boid.position.x) < behaviorParams.boundPadding) steering.x -= Math.sign(boid.position.x) * (Math.abs(boid.position.x)) * 100
-            if (behaviorParams.bound - Math.abs(boid.position.y) < behaviorParams.boundPadding) steering.y -= Math.sign(boid.position.y) * (Math.abs(boid.position.y)) * 100
-            if (behaviorParams.bound - Math.abs(boid.position.z) < behaviorParams.boundPadding) steering.z -= Math.sign(boid.position.z) * (Math.abs(boid.position.z)) * 100
+            if (behaviorParams.bound - Math.abs((myBoidObject.nearestStarBody?.position ?? zeroVector).x - boid.position.x) < behaviorParams.boundPadding) steering.x -= Math.sign(boid.position.x) * (Math.abs(boid.position.x)) * 50
+            if (behaviorParams.bound - Math.abs((myBoidObject.nearestStarBody?.position ?? zeroVector).y - boid.position.y) < behaviorParams.boundPadding) steering.y -= Math.sign(boid.position.y) * (Math.abs(boid.position.y)) * 50
+            if (behaviorParams.bound - Math.abs((myBoidObject.nearestStarBody?.position ?? zeroVector).z - boid.position.z) < behaviorParams.boundPadding) steering.z -= Math.sign(boid.position.z) * (Math.abs(boid.position.z)) * 50
 
             // Apply Movement
             if ((keysPressed['ArrowUp'] || keysPressed['ArrowDown'] || keysPressed['ArrowLeft'] || keysPressed['ArrowRight']) && index == 0) {
@@ -515,7 +600,15 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
             myBoidObject.position.copy(boid.position)
         })
 
-        // orbitControls.update();
+        // if the focused StarBody has changed and is new, expand the universe
+        if (boids[0].nearestStarBody && boids[0].nearestStarBody != focusedStarBody && exploredStarBodies.indexOf(boids[0].nearestStarBody) < 0 && exploredStarBodies.length < 15) {
+            exploredStarBodies.push(boids[0].nearestStarBody)
+            focusedStarBody = boids[0].nearestStarBody
+
+            expandStarBodies(boids[0].nearestStarBody)
+        }
+
+        if (cameraParams.cinematicMode) orbitControls.update();
         renderer.render(scene, camera);
         window.requestAnimationFrame(renderloop);
     };
