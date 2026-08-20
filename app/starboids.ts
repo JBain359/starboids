@@ -2,50 +2,9 @@ import * as THREE from "three";
 import { Pane } from "tweakpane";
 import { HDRLoader, OrbitControls } from "three/examples/jsm/Addons.js";
 import { GLTFLoader } from "three/examples/jsm/Addons.js";
-import { getFresnelMat } from "./getFresnelMat";
-import getStarPoints from "./starfield";
-import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js';
 import RandomWeightedChoice from "./randomWeighted";
-
-interface Boid {
-    size: number
-    color: THREE.Color
-    wireframe: boolean
-    position: THREE.Vector3
-    rotation: THREE.Vector3
-    velocity: THREE.Vector3
-    speed: number
-    nearestStarBody?: StarBody
-    chassis: {
-        geometry: THREE.BufferGeometry
-        material: THREE.Material
-    }
-    wingL?: {
-        geometry: THREE.BufferGeometry
-        material: THREE.Material
-    }
-    wingR?: {
-        geometry: THREE.BufferGeometry
-        material: THREE.Material
-    }
-}
-
-interface StarBody {
-    size: number
-    color: THREE.Color
-    terrainColor: THREE.Color
-    seaLevel: number
-    emissiveColor: THREE.Color
-    position: THREE.Vector3
-    lightIntensity: number
-    lightRange: number
-    speed: number
-    orbitingBodies: StarBody[]
-    stars?: {
-        numStars: number
-        starRange: number
-    }
-}
+import { Boid, StarBody } from './types';
+import { createBoidMesh, createStarBody, loadCrocMesh } from './starfield'
 
 export default async function starboids(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
 
@@ -62,7 +21,6 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
     // initialize the scene
     const scene = new THREE.Scene();
     const pane = new Pane();
-    const gltfLoader = new GLTFLoader();
     const cameraPane = pane.addFolder({
         title: 'Camera',
         expanded: false
@@ -179,48 +137,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
         './assets/BoidCraftSpeedy.gltf'
     ]
 
-    let [chassis, wing, speedy] = await Promise.all(meshUrls.map(async (url) => {
-        let retGeo: THREE.BufferGeometry;
-        let retMat: THREE.Material | null = null;
-        try {
-            const loadedScene = await gltfLoader.loadAsync(url)
-            let loadedMesh: THREE.Mesh | null = null;
-            loadedScene.scene.traverse((child) => {
-                if ((child as THREE.Mesh).isMesh && !loadedMesh) {
-                    loadedMesh = child as THREE.Mesh;
-                }
-            });
-
-            if (loadedMesh) {
-                // Clone geometry so modifications won't mutate cached assets
-                retGeo = (loadedMesh as THREE.Mesh).geometry.clone();
-
-                // Optional: Standardize geometry center and orientation
-                retGeo.center();
-
-                // Use model's original material or keep your custom materials
-                retMat = (loadedMesh as THREE.Mesh).material as THREE.Material<THREE.MaterialEventMap>;
-            } else {
-                retGeo = new THREE.ConeGeometry(0.1, 0.2, 3);
-                retMat = new THREE.MeshBasicMaterial();
-            }
-
-            return { geometry: retGeo, material: retMat }
-        } catch (err) {
-            console.warn("Failed to load GLTF model, falling back to ConeGeometry", err);
-            return {
-                geometry: new THREE.ConeGeometry(0.1, 0.2, 3),
-                material: new THREE.MeshBasicMaterial()
-            }
-        }
-    }
-    ))
-
-    // Add bounding box
-    const arenaGeometry = new THREE.BoxGeometry(1, 1, 1, 32, 32, 32)
-    const arenaMaterial = new THREE.MeshBasicMaterial({ color: 'green', wireframe: true, side: 2 })
-    const arenaMesh = new THREE.Mesh(arenaGeometry, arenaMaterial)
-    arenaMesh.scale.setScalar(behaviorParams.bound * 2)
+    let [chassis, wing, speedy] = await Promise.all(meshUrls.map(loadCrocMesh))
 
     // initialize objects
     const boids: Boid[] = [
@@ -257,7 +174,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
                 {
                     size: .3,
                     seaLevel: 0,
-                    color: new THREE.Color(0xCCB6BD),
+                    color: new THREE.Color(0xBBC7CE),
                     terrainColor: new THREE.Color(0xBBC7CE),
                     emissiveColor: new THREE.Color(0xffffff),
                     position: new THREE.Vector3(3, 0, 3),
@@ -270,126 +187,13 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
         }
     ]
 
-    const allBoids = new THREE.Group();
-    const createBoidMesh = (b: Boid) => {
-        // Standard default material if model material isn't used
-        const boidMaterial = new THREE.MeshStandardMaterial({
-            color: b.color,
-            wireframe: b.wireframe,
-            metalness: .6,
-            roughness: 0,
-            side: 2
-        });
-
-        const boidMesh = new THREE.Mesh(b.chassis.geometry, boidMaterial);
-
-        if (b.wingL) {
-            const boidWingL = new THREE.Mesh(b.wingL.geometry, boidMaterial);
-            boidWingL.position.x = -2
-            boidWingL.position.y = .25
-            boidWingL.position.z = 0
-            boidWingL.userData.wing = true;
-            boidMesh.add(boidWingL)
-        }
-
-        if (b.wingR) {
-            const boidWingR = new THREE.Mesh(b.wingR.geometry, boidMaterial);
-            boidWingR.position.x = 2
-            boidWingR.position.y = .25
-            boidWingR.position.z = 0
-            boidWingR.scale.set(-1, 1, 1)
-            boidWingR.userData.wing = true;
-            boidMesh.add(boidWingR)
-        }
-
-        // Adjust scale according to imported model dimensions
-        boidMesh.scale.setScalar(b.size);
-        boidMesh.position.copy(b.position);
-
-        allBoids.add(boidMesh);
-    }
-
-    boids.forEach((boid) => {
-        createBoidMesh(boid)
-    })
-
     const allStarBodies = new THREE.Group();
-    const createStarBody = (body: StarBody, group: THREE.Object3D) => {
-        const bodyMaterial = new THREE.MeshStandardMaterial({ color: body.color, emissive: body.color, emissiveIntensity: body.lightIntensity / 100, metalness: .1, roughness: 1, flatShading: true });
-        const bodyGeometry = new THREE.IcosahedronGeometry(body.size, 1)
-        const bodyMesh = new THREE.Mesh(bodyGeometry, bodyMaterial)
-        bodyMesh.userData.orbitable = true;
-
-        const terrainMaterial = new THREE.MeshStandardMaterial({
-            color: body.terrainColor, emissive: body.terrainColor, emissiveIntensity: body.lightIntensity / 100, metalness: .6, roughness: .5
-        });
-
-        const terrainGeometry = new THREE.IcosahedronGeometry(body.size, 3)
-
-        // 2. Prepare Perlin Noise generator
-        const perlin = new ImprovedNoise();
-        const positionAttribute = terrainGeometry.attributes.position;
-        const vertex = new THREE.Vector3();
-
-        const noiseScale = 10;  // Frequency of bumps
-        const heightFactor = .25 * body.size // Amplitude of terrain peaks
-
-        // 3. Displace each vertex along its normal
-        const seaHeight = Math.random() * body.seaLevel //uniformly descend each vertex into the sea
-        for (let i = 0; i < positionAttribute.count; i++) {
-            vertex.fromBufferAttribute(positionAttribute, i);
-
-            // Get normalized direction vector (normal from sphere center)
-            const normal = vertex.clone().normalize();
-
-            // Sample 3D noise at the vertex position
-            // perlin.noise returns -1.0 to 1.0
-            const noiseVal = perlin.noise(
-                vertex.x * noiseScale,
-                vertex.y * noiseScale,
-                vertex.z * noiseScale
-            ) - seaHeight;
-
-            // Displace original position outward along the normal
-            const displacement = body.size + (noiseVal * heightFactor);
-            vertex.copy(normal).multiplyScalar(displacement);
-
-            // Write updated vector back to geometry
-            positionAttribute.setXYZ(i, vertex.x, vertex.y, vertex.z);
-        }
-
-        // 4. Recalculate normals for correct lighting
-        terrainGeometry.computeVertexNormals();
-        const terrainMesh = new THREE.Mesh(terrainGeometry, terrainMaterial)
-
-        const atmosphereHeight = body.size * (1 + 0.5 * Math.random())
-        const atmoMaterial = getFresnelMat({ facingHex: 0x000000, rimHex: body.color.getHex() });
-        const atmoGeometry = new THREE.IcosahedronGeometry(body.size + heightFactor, 1);
-        const atmoMesh = new THREE.Mesh(atmoGeometry, atmoMaterial)
-        bodyMesh.userData.atmosphere = true;
-
-        bodyMesh.add(atmoMesh)
-        bodyMesh.add(terrainMesh)
-
-        bodyMesh.position.copy(body.position)
-
-        const starLight = new THREE.PointLight(body.color, body.lightIntensity * 2, body.lightRange)
-        starLight.position.copy(body.position)
-
-        //add stars
-        if (body.stars) {
-            const stars = getStarPoints({ numStars: body.stars?.numStars, r: body.stars?.starRange });
-            bodyMesh.add(stars)
-        }
-
-        bodyMesh.add(starLight)
-        body.orbitingBodies.forEach((orb) => {
-            createStarBody(orb, bodyMesh)
-        })
-        group.add(bodyMesh)
-    }
+    const allBoids = new THREE.Group();
     starBodies.forEach((body) => {
         createStarBody(body, allStarBodies)
+    })
+    boids.forEach((boid) => {
+        createBoidMesh(boid, allBoids)
     })
 
     // initialize the camera
@@ -469,7 +273,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
                 ...shipTypes[parseInt(RandomWeightedChoice(weights))]
             }
             boids.push(b)
-            createBoidMesh(b)
+            createBoidMesh(b, allBoids)
         }
     }
 
@@ -550,6 +354,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
     const facingUser = new THREE.Vector3(0, 0, 1)
     const zeroVector = new THREE.Vector3();
     const exploredStarBodies: StarBody[] = []
+
     const renderloop = () => {
         confirmBoidCount()
 
@@ -581,13 +386,13 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
         // Rotate orbiting bodies about starbodies
         allStarBodies.children.forEach((body, index) => {
             const myStarBodyObject = starBodies[index]
-            body.children[0].rotation.y += .01
+            // body.children[0].rotation.y += .01
 
             body.children.filter((c) => (c as THREE.Mesh).userData.orbitable).forEach((child, ci) => {
                 const childVector = myStarBodyObject.orbitingBodies[ci].position.clone()
 
                 //calculate the rotation axis using the cross product
-                orbitAxis.crossVectors(childVector, new THREE.Vector3(0, 0, 1)).normalize()
+                orbitAxis.crossVectors(childVector, facingUser).normalize()
 
                 // Move mesh about its orbit
                 child.position.applyAxisAngle(orbitAxis, myStarBodyObject.orbitingBodies[ci].speed)
