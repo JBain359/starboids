@@ -2,8 +2,9 @@ import * as THREE from "three";
 import { Pane } from "tweakpane";
 import { HDRLoader, OrbitControls } from "three/examples/jsm/Addons.js";
 import { GLTFLoader } from "three/examples/jsm/Addons.js";
-import { EXRLoader } from "three/examples/jsm/Addons.js";
+import { getFresnelMat } from "./getFresnelMat";
 import getStarPoints from "./starfield";
+import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js';
 
 interface Boid {
     size: number
@@ -19,6 +20,8 @@ interface Boid {
 interface StarBody {
     size: number
     color: THREE.Color
+    terrainColor: THREE.Color
+    seaLevel: number
     emissiveColor: THREE.Color
     position: THREE.Vector3
     lightIntensity: number
@@ -150,12 +153,11 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
     )
 
     // add lights
-    const exrLoader = new EXRLoader();
+    const hdrLoader = new HDRLoader();
 
-    const exr = await exrLoader.loadAsync('./assets/lonely_road_afternoon_puresky_4k.exr')
-    exr.mapping = THREE.EquirectangularReflectionMapping
-    scene.environment = exr
-
+    const hdr = await hdrLoader.loadAsync('./assets/lonely_road_afternoon_puresky_4k.hdr')
+    hdr.mapping = THREE.EquirectangularReflectionMapping
+    scene.environment = hdr
 
     // Add bounding box
     const arenaGeometry = new THREE.BoxGeometry(1, 1, 1, 32, 32, 32)
@@ -179,10 +181,12 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
     const starBodies: StarBody[] = [
         {
             size: 1,
-            color: new THREE.Color(0xffa800),
+            color: new THREE.Color(0x46ACC2),
+            terrainColor: new THREE.Color(0x2B9720),
             emissiveColor: new THREE.Color(0xffa800),
+            seaLevel: .25,
             position: new THREE.Vector3(0, 0, 0),
-            lightIntensity: 100,
+            lightIntensity: 20,
             lightRange: 40,
             speed: 1,
             stars: {
@@ -192,24 +196,16 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
             orbitingBodies: [
                 {
                     size: .3,
-                    color: new THREE.Color(0xffffff),
+                    seaLevel: 0,
+                    color: new THREE.Color(0xCCB6BD),
+                    terrainColor: new THREE.Color(0xBBC7CE),
                     emissiveColor: new THREE.Color(0xffffff),
-                    position: new THREE.Vector3(1, 1, 1),
-                    lightIntensity: 100,
+                    position: new THREE.Vector3(3, 0, 3),
+                    lightIntensity: 10,
                     lightRange: 40,
                     speed: .01,
                     orbitingBodies: []
                 },
-                {
-                    size: .5,
-                    color: new THREE.Color(0xff00ff),
-                    emissiveColor: new THREE.Color(0xff00ff),
-                    position: new THREE.Vector3(1, 3, 1),
-                    lightIntensity: 100,
-                    lightRange: 40,
-                    speed: .04,
-                    orbitingBodies: []
-                }
             ]
         }
     ]
@@ -306,19 +302,64 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
     const allStarBodies = new THREE.Group();
     const createStarBody = (body: StarBody, group: THREE.Object3D) => {
         const bodyMaterial = new THREE.MeshStandardMaterial({ color: body.color, emissive: body.color, emissiveIntensity: body.lightIntensity / 100, metalness: .6, roughness: .5 });
-        const bodyGeometry = new THREE.SphereGeometry(body.size, 8, 8);
+        const bodyGeometry = new THREE.IcosahedronGeometry(body.size, 1)
         const bodyMesh = new THREE.Mesh(bodyGeometry, bodyMaterial)
         bodyMesh.userData.orbitable = true;
 
-        const atmoMaterial = new THREE.MeshStandardMaterial({ color: body.color, emissive: body.color, emissiveIntensity: body.lightIntensity / 100, transparent: true, opacity: .5 });
-        const atmoGeometry = new THREE.SphereGeometry(body.size * 1.1, 32, 32);
+        const terrainMaterial = new THREE.MeshStandardMaterial({
+            color: body.terrainColor, emissive: body.terrainColor, emissiveIntensity: body.lightIntensity / 100, metalness: .6, roughness: .5
+        });
+
+        const terrainGeometry = new THREE.IcosahedronGeometry(body.size, 3)
+
+        // 2. Prepare Perlin Noise generator
+        const perlin = new ImprovedNoise();
+        const positionAttribute = terrainGeometry.attributes.position;
+        const vertex = new THREE.Vector3();
+
+        const noiseScale = 10;  // Frequency of bumps
+        const heightFactor = .25 * body.size // Amplitude of terrain peaks
+
+        // 3. Displace each vertex along its normal
+        const seaHeight = Math.random() * body.seaLevel //uniformly descend each vertex into the sea
+        for (let i = 0; i < positionAttribute.count; i++) {
+            vertex.fromBufferAttribute(positionAttribute, i);
+
+            // Get normalized direction vector (normal from sphere center)
+            const normal = vertex.clone().normalize();
+
+            // Sample 3D noise at the vertex position
+            // perlin.noise returns -1.0 to 1.0
+            const noiseVal = perlin.noise(
+                vertex.x * noiseScale,
+                vertex.y * noiseScale,
+                vertex.z * noiseScale
+            ) - seaHeight;
+
+            // Displace original position outward along the normal
+            const displacement = body.size + (noiseVal * heightFactor);
+            vertex.copy(normal).multiplyScalar(displacement);
+
+            // Write updated vector back to geometry
+            positionAttribute.setXYZ(i, vertex.x, vertex.y, vertex.z);
+        }
+
+        // 4. Recalculate normals for correct lighting
+        terrainGeometry.computeVertexNormals();
+        const terrainMesh = new THREE.Mesh(terrainGeometry, terrainMaterial)
+
+        const atmosphereHeight = body.size * (1 + 0.5 * Math.random())
+        const atmoMaterial = getFresnelMat({ facingHex: 0x000000, rimHex: body.color.getHex() });
+        const atmoGeometry = new THREE.IcosahedronGeometry(body.size + heightFactor, 1);
         const atmoMesh = new THREE.Mesh(atmoGeometry, atmoMaterial)
+        bodyMesh.userData.atmosphere = true;
 
         bodyMesh.add(atmoMesh)
+        bodyMesh.add(terrainMesh)
 
         bodyMesh.position.copy(body.position)
 
-        const starLight = new THREE.PointLight(body.emissiveColor, body.lightIntensity * 2, body.lightRange)
+        const starLight = new THREE.PointLight(body.color, body.lightIntensity * 2, body.lightRange)
         starLight.position.copy(body.position)
 
         //add stars
@@ -400,17 +441,24 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
             Math.random(),
             Math.random()
         )
+        const terrainColor = new THREE.Color(
+            Math.random(),
+            Math.random(),
+            Math.random()
+        )
         const lightIntensity = Math.random() * 100
         const lightRange = Math.random() * 100
 
         return {
             size: bodySize,
             color: color,
+            terrainColor: terrainColor,
             emissiveColor: color,
+            seaLevel: Math.random(),
             position: position,
             lightIntensity: lightIntensity,
             lightRange: lightRange,
-            speed: Math.random() * .02 - .04,
+            speed: Math.random() * .01 - .02,
             stars: moons > 0 ? { numStars: 500, starRange: 10 } : { numStars: 0, starRange: 0 },
             orbitingBodies: Array.from(
                 { length: moons },
@@ -494,6 +542,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
         // Rotate orbiting bodies about starbodies
         allStarBodies.children.forEach((body, index) => {
             const myStarBodyObject = starBodies[index]
+            body.children[0].rotation.y += .01
 
             body.children.filter((c) => (c as THREE.Mesh).userData.orbitable).forEach((child, ci) => {
                 const childVector = myStarBodyObject.orbitingBodies[ci].position.clone()
@@ -608,7 +657,8 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
             expandStarBodies(boids[0].nearestStarBody)
         }
 
-        if (cameraParams.cinematicMode) orbitControls.update();
+        if (cameraParams.cinematicMode)
+            orbitControls.update();
         renderer.render(scene, camera);
         window.requestAnimationFrame(renderloop);
     };
