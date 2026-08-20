@@ -216,52 +216,49 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
     let boidWingGeometry: THREE.BufferGeometry;
     let boidWingMaterial: THREE.Material | null = null;
 
-    try {
-        // Replace with your actual GLTF file path
-        const [chassis, wing] = await Promise.all([
-            gltfLoader.loadAsync('./assets/BoidCraft_Chassis.gltf'),
-            gltfLoader.loadAsync('./assets/BoidCraft_Wing.gltf')
-        ])
+    // Load all meshes
+    const meshUrls = [
+        './assets/BoidCraft_Chassis.gltf',
+        './assets/BoidCraft_Wing.gltf',
+        './assets/BoidCraftSpeedy.gltf'
+    ]
 
-        // Find the first mesh inside the GLTF hierarchy
-        let loadedChassisMesh: THREE.Mesh | null = null;
-        chassis.scene.traverse((child) => {
-            if ((child as THREE.Mesh).isMesh && !loadedChassisMesh) {
-                loadedChassisMesh = child as THREE.Mesh;
+    let [chassis, wing, speedy] = await Promise.all(meshUrls.map(async (url) => {
+        let retGeo: THREE.BufferGeometry;
+        let retMat: THREE.Material | null = null;
+        try {
+            const loadedScene = await gltfLoader.loadAsync(url)
+            let loadedMesh: THREE.Mesh | null = null;
+            loadedScene.scene.traverse((child) => {
+                if ((child as THREE.Mesh).isMesh && !loadedMesh) {
+                    loadedMesh = child as THREE.Mesh;
+                }
+            });
+
+            if (loadedMesh) {
+                // Clone geometry so modifications won't mutate cached assets
+                retGeo = (loadedMesh as THREE.Mesh).geometry.clone();
+
+                // Optional: Standardize geometry center and orientation
+                retGeo.center();
+
+                // Use model's original material or keep your custom materials
+                retMat = (loadedMesh as THREE.Mesh).material as THREE.Material<THREE.MaterialEventMap>;
+            } else {
+                retGeo = new THREE.ConeGeometry(0.1, 0.2, 3);
+                retMat = new THREE.MeshBasicMaterial();
             }
-        });
 
-        if (loadedChassisMesh) {
-            // Clone geometry so modifications won't mutate cached assets
-            boidChassisGeometry = (loadedChassisMesh as THREE.Mesh).geometry.clone();
-
-            // Optional: Standardize geometry center and orientation
-            boidChassisGeometry.center();
-
-            // Use model's original material or keep your custom materials
-            boidChassisMaterial = (loadedChassisMesh as THREE.Mesh).material as THREE.Material<THREE.MaterialEventMap>;
-        } else {
-            boidChassisGeometry = new THREE.ConeGeometry(0.1, 0.2, 3);
-        }
-        let loadedWingMesh: THREE.Mesh | null = null
-        wing.scene.traverse((child) => {
-            if ((child as THREE.Mesh).isMesh && !loadedWingMesh) {
-                loadedWingMesh = child as THREE.Mesh
+            return { geometry: retGeo, material: retMat }
+        } catch (err) {
+            console.warn("Failed to load GLTF model, falling back to ConeGeometry", err);
+            return {
+                geometry: new THREE.ConeGeometry(0.1, 0.2, 3),
+                material: new THREE.MeshBasicMaterial()
             }
-        })
-        if (loadedWingMesh) {
-            boidWingGeometry = (loadedWingMesh as THREE.Mesh).geometry.clone();
-
-            boidWingGeometry.center();
-
-            boidWingMaterial = (loadedWingMesh as THREE.Mesh).material as THREE.Material<THREE.MaterialEventMap>;
-        } else {
-            boidWingGeometry = new THREE.ConeGeometry(0.1, 0.2, 3);
         }
-    } catch (err) {
-        console.warn("Failed to load GLTF model, falling back to ConeGeometry", err);
-        boidChassisGeometry = new THREE.ConeGeometry(0.1, 0.2, 3);
     }
+    ))
 
     const allBoids = new THREE.Group();
     const createBoidMesh = (b: Boid) => {
@@ -274,17 +271,19 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
             side: 2
         });
 
-        const boidMesh = new THREE.Mesh(boidChassisGeometry, boidMaterial);
-        const boidWingL = new THREE.Mesh(boidWingGeometry, boidMaterial);
+        const boidMesh = new THREE.Mesh(chassis.geometry, boidMaterial);
+        const boidWingL = new THREE.Mesh(wing.geometry, boidMaterial);
         boidWingL.position.x = -2
         boidWingL.position.y = .25
         boidWingL.position.z = 0
+        boidWingL.userData.wing = true;
 
-        const boidWingR = new THREE.Mesh(boidWingGeometry, boidMaterial);
+        const boidWingR = new THREE.Mesh(wing.geometry, boidMaterial);
         boidWingR.position.x = 2
         boidWingR.position.y = .25
         boidWingR.position.z = 0
         boidWingR.scale.set(-1, 1, 1)
+        boidWingR.userData.wing = true;
 
         boidMesh.add(boidWingR)
         boidMesh.add(boidWingL)
@@ -642,7 +641,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
                 boid.quaternion.setFromUnitVectors(facingUser, myBoidObject.velocity);
             }
 
-            boid.children.forEach((wing) => {
+            boid.children.filter((child) => child.userData.wing).forEach((wing) => {
                 wing.rotation.x = THREE.MathUtils.lerp(wing.rotation.x, myBoidObject.velocity.y * .5, .1)
             })
             boid.position.addScaledVector(myBoidObject.velocity, behaviorParams.speed)
