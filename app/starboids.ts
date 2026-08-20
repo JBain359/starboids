@@ -5,6 +5,7 @@ import { GLTFLoader } from "three/examples/jsm/Addons.js";
 import { getFresnelMat } from "./getFresnelMat";
 import getStarPoints from "./starfield";
 import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js';
+import RandomWeightedChoice from "./randomWeighted";
 
 interface Boid {
     size: number
@@ -15,6 +16,18 @@ interface Boid {
     velocity: THREE.Vector3
     speed: number
     nearestStarBody?: StarBody
+    chassis: {
+        geometry: THREE.BufferGeometry
+        material: THREE.Material
+    }
+    wingL?: {
+        geometry: THREE.BufferGeometry
+        material: THREE.Material
+    }
+    wingR?: {
+        geometry: THREE.BufferGeometry
+        material: THREE.Material
+    }
 }
 
 interface StarBody {
@@ -78,7 +91,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
     const cameraParams = {
         trailing: 0.03,
         offset: new THREE.Vector3(0, -.25, 0),
-        cinematicMode: false
+        cinematicMode: true
     }
 
     behaviorPane.addBinding(
@@ -159,63 +172,6 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
     hdr.mapping = THREE.EquirectangularReflectionMapping
     scene.environment = hdr
 
-    // Add bounding box
-    const arenaGeometry = new THREE.BoxGeometry(1, 1, 1, 32, 32, 32)
-    const arenaMaterial = new THREE.MeshBasicMaterial({ color: 'green', wireframe: true, side: 2 })
-    const arenaMesh = new THREE.Mesh(arenaGeometry, arenaMaterial)
-    arenaMesh.scale.setScalar(behaviorParams.bound * 2)
-
-    // initialize objects
-    const boids: Boid[] = [
-        {
-            size: .1,
-            color: new THREE.Color(0xffa800),
-            wireframe: false,
-            position: new THREE.Vector3(0, 0, 0),
-            rotation: new THREE.Vector3(THREE.MathUtils.degToRad(90), 0, 0),
-            velocity: new THREE.Vector3(Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1).normalize(),
-            speed: behaviorParams.speed
-        }
-    ]
-
-    const starBodies: StarBody[] = [
-        {
-            size: 1,
-            color: new THREE.Color(0x46ACC2),
-            terrainColor: new THREE.Color(0x2B9720),
-            emissiveColor: new THREE.Color(0xffa800),
-            seaLevel: .25,
-            position: new THREE.Vector3(0, 0, 0),
-            lightIntensity: 20,
-            lightRange: 40,
-            speed: 1,
-            stars: {
-                numStars: 500,
-                starRange: 10
-            },
-            orbitingBodies: [
-                {
-                    size: .3,
-                    seaLevel: 0,
-                    color: new THREE.Color(0xCCB6BD),
-                    terrainColor: new THREE.Color(0xBBC7CE),
-                    emissiveColor: new THREE.Color(0xffffff),
-                    position: new THREE.Vector3(3, 0, 3),
-                    lightIntensity: 10,
-                    lightRange: 40,
-                    speed: .01,
-                    orbitingBodies: []
-                },
-            ]
-        }
-    ]
-
-    // add boids to the scene
-    let boidChassisGeometry: THREE.BufferGeometry;
-    let boidChassisMaterial: THREE.Material | null = null;
-    let boidWingGeometry: THREE.BufferGeometry;
-    let boidWingMaterial: THREE.Material | null = null;
-
     // Load all meshes
     const meshUrls = [
         './assets/BoidCraft_Chassis.gltf',
@@ -260,6 +216,60 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
     }
     ))
 
+    // Add bounding box
+    const arenaGeometry = new THREE.BoxGeometry(1, 1, 1, 32, 32, 32)
+    const arenaMaterial = new THREE.MeshBasicMaterial({ color: 'green', wireframe: true, side: 2 })
+    const arenaMesh = new THREE.Mesh(arenaGeometry, arenaMaterial)
+    arenaMesh.scale.setScalar(behaviorParams.bound * 2)
+
+    // initialize objects
+    const boids: Boid[] = [
+        {
+            size: .1,
+            color: new THREE.Color(0xffa800),
+            wireframe: false,
+            position: new THREE.Vector3(0, 0, 0),
+            rotation: new THREE.Vector3(THREE.MathUtils.degToRad(90), 0, 0),
+            velocity: new THREE.Vector3(Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1).normalize(),
+            speed: behaviorParams.speed,
+            wingL: wing,
+            wingR: wing,
+            chassis: chassis
+        }
+    ]
+
+    const starBodies: StarBody[] = [
+        {
+            size: 1,
+            color: new THREE.Color(0x46ACC2),
+            terrainColor: new THREE.Color(0x2B9720),
+            emissiveColor: new THREE.Color(0xffa800),
+            seaLevel: .25,
+            position: new THREE.Vector3(0, 0, 0),
+            lightIntensity: 20,
+            lightRange: 40,
+            speed: 1,
+            stars: {
+                numStars: 500,
+                starRange: 10
+            },
+            orbitingBodies: [
+                {
+                    size: .3,
+                    seaLevel: 0,
+                    color: new THREE.Color(0xCCB6BD),
+                    terrainColor: new THREE.Color(0xBBC7CE),
+                    emissiveColor: new THREE.Color(0xffffff),
+                    position: new THREE.Vector3(3, 0, 3),
+                    lightIntensity: 10,
+                    lightRange: 40,
+                    speed: .01,
+                    orbitingBodies: []
+                },
+            ]
+        }
+    ]
+
     const allBoids = new THREE.Group();
     const createBoidMesh = (b: Boid) => {
         // Standard default material if model material isn't used
@@ -271,22 +281,27 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
             side: 2
         });
 
-        const boidMesh = new THREE.Mesh(chassis.geometry, boidMaterial);
-        const boidWingL = new THREE.Mesh(wing.geometry, boidMaterial);
-        boidWingL.position.x = -2
-        boidWingL.position.y = .25
-        boidWingL.position.z = 0
-        boidWingL.userData.wing = true;
+        const boidMesh = new THREE.Mesh(b.chassis.geometry, boidMaterial);
 
-        const boidWingR = new THREE.Mesh(wing.geometry, boidMaterial);
-        boidWingR.position.x = 2
-        boidWingR.position.y = .25
-        boidWingR.position.z = 0
-        boidWingR.scale.set(-1, 1, 1)
-        boidWingR.userData.wing = true;
+        if (b.wingL) {
+            const boidWingL = new THREE.Mesh(b.wingL.geometry, boidMaterial);
+            boidWingL.position.x = -2
+            boidWingL.position.y = .25
+            boidWingL.position.z = 0
+            boidWingL.userData.wing = true;
+            boidMesh.add(boidWingL)
+        }
 
-        boidMesh.add(boidWingR)
-        boidMesh.add(boidWingL)
+        if (b.wingR) {
+            const boidWingR = new THREE.Mesh(b.wingR.geometry, boidMaterial);
+            boidWingR.position.x = 2
+            boidWingR.position.y = .25
+            boidWingR.position.z = 0
+            boidWingR.scale.set(-1, 1, 1)
+            boidWingR.userData.wing = true;
+            boidMesh.add(boidWingR)
+        }
+
         // Adjust scale according to imported model dimensions
         boidMesh.scale.setScalar(b.size);
         boidMesh.position.copy(b.position);
@@ -409,6 +424,10 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
     });
 
     const confirmBoidCount = () => {
+        const weights = {
+            0: 80,
+            1: 20
+        }
         const numBoidsWPlayer = behaviorParams.numBoids + 1
         while (numBoidsWPlayer < boids.length) {
             boids.pop()
@@ -419,14 +438,35 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
         }
 
         while (numBoidsWPlayer > allBoids.children.length) {
+
+
+            const shipTypes = [
+                {
+                    size: .1,
+                    wingL: wing,
+                    wingR: wing,
+                    chassis: chassis,
+                    color: new THREE.Color('white'),
+                    speed: behaviorParams.speed,
+                },
+                {
+                    size: .25,
+                    wingL: undefined,
+                    wingR: undefined,
+                    chassis: speedy,
+                    color: new THREE.Color("rgb(37, 69, 139)"),
+                    speed: behaviorParams.speed * 1.5,
+                },
+
+
+            ]
             const b = {
-                size: .1,
-                color: new THREE.Color('white'),
                 wireframe: false,
                 position: new THREE.Vector3(Math.random() * behaviorParams.bound * 2 - behaviorParams.bound, Math.random() * behaviorParams.bound * 2 - behaviorParams.bound, Math.random() * behaviorParams.bound * 2 - behaviorParams.bound).add(cameraBoid.position),
                 rotation: new THREE.Vector3(THREE.MathUtils.degToRad(90), 0, 0),
                 velocity: new THREE.Vector3(Math.random() * 100 - 50, Math.random() * 100 - 50, Math.random() * 100 - 50).normalize(),
-                speed: behaviorParams.speed,
+
+                ...shipTypes[parseInt(RandomWeightedChoice(weights))]
             }
             boids.push(b)
             createBoidMesh(b)
@@ -586,13 +626,14 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
             allBoids.children.forEach((otherBoid, obi) => {
                 if (Math.abs(index - obi) < 1) return; //skip self
                 // if (obi == 0) return; //dont be influenced by player
+                const myOtherBoidObject = boids[obi]
 
                 // check distance from self
                 diff.subVectors(otherBoid.position.clone().add(boids[obi].velocity), boid.position);
                 const distance = diff.length()
                 const dot = forward.dot(diff.clone().normalize())
 
-                if (dot > behaviorParams.friendlyDot && distance < behaviorParams.friendlinessRange && Math.abs(index - obi) < behaviorParams.numBoids * behaviorParams.friendliness) steering.add(diff.clone().normalize().multiplyScalar(behaviorParams.friendlyStrength * distance))
+                if (myBoidObject.chassis.geometry === myOtherBoidObject.chassis.geometry && dot > behaviorParams.friendlyDot && distance < behaviorParams.friendlinessRange && Math.abs(index - obi) < behaviorParams.numBoids * behaviorParams.friendliness) steering.add(diff.clone().normalize().multiplyScalar(behaviorParams.friendlyStrength * distance))
 
                 if (distance < behaviorParams.personalSpaceMaxDistance && distance > 0) {
                     // check position relative to us using dot product
@@ -603,7 +644,6 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
 
                         // Scale force higher as distance decreases
                         pushAway.multiplyScalar((behaviorParams.personalSpaceMaxDistance - distance) / behaviorParams.personalSpaceMaxDistance);
-                        pushAway.multiplyScalar((behaviorParams.personalSpaceMaxDistance - distance) / behaviorParams.personalSpaceMaxDistance);
                         steering.add(pushAway);
                     }
 
@@ -612,7 +652,6 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
                         const influence = boids[obi].velocity.clone();
 
                         // Scale force higher as distance decreases
-                        influence.multiplyScalar((behaviorParams.personalSpaceMaxDistance - distance) / behaviorParams.personalSpaceMaxDistance);
                         influence.multiplyScalar((behaviorParams.personalSpaceMaxDistance - distance) / behaviorParams.personalSpaceMaxDistance);
                         steering.add(influence);
                     }
@@ -644,7 +683,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
             boid.children.filter((child) => child.userData.wing).forEach((wing) => {
                 wing.rotation.x = THREE.MathUtils.lerp(wing.rotation.x, myBoidObject.velocity.y * .5, .1)
             })
-            boid.position.addScaledVector(myBoidObject.velocity, behaviorParams.speed)
+            boid.position.addScaledVector(myBoidObject.velocity, myBoidObject.speed)
             myBoidObject.position.copy(boid.position)
         })
 
