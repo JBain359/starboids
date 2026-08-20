@@ -301,7 +301,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
 
     const allStarBodies = new THREE.Group();
     const createStarBody = (body: StarBody, group: THREE.Object3D) => {
-        const bodyMaterial = new THREE.MeshStandardMaterial({ color: body.color, emissive: body.color, emissiveIntensity: body.lightIntensity / 100, metalness: .6, roughness: .5 });
+        const bodyMaterial = new THREE.MeshStandardMaterial({ color: body.color, emissive: body.color, emissiveIntensity: body.lightIntensity / 100, metalness: .1, roughness: 1, flatShading: true });
         const bodyGeometry = new THREE.IcosahedronGeometry(body.size, 1)
         const bodyMesh = new THREE.Mesh(bodyGeometry, bodyMaterial)
         bodyMesh.userData.orbitable = true;
