@@ -77,7 +77,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
     behaviorPane.addBinding(behaviorParams, 'steeringStrength', { min: -1, max: 2, step: 0.05 });
     behaviorPane.addBinding(behaviorParams, 'speed', { min: 0, max: 1, step: 0.05 });
 
-    cameraPane.addBinding(cameraParams, 'trailing', { min: 0.0005, max: 1, step: 0.0005 });
+    cameraPane.addBinding(cameraParams, 'trailing', { min: 0, max: 1, step: 0.0005 });
     cameraPane.addBinding(cameraParams, 'offset', {
         x: { min: -1, max: 1, step: 0.05 },
         y: { min: -1, max: 1, step: 0.05 },
@@ -238,7 +238,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
             const newStarDistance = (5 * Math.random() - 5) + behaviorParams.bound * 2;
             const pos = new THREE.Vector3(
                 2 * Math.random() - 1,
-                0, // we'll rotate about the y axis, so lets keep this 0 to keep the rotation centered about the parent planet
+                2 * Math.random() - 1,
                 2 * Math.random() - 1
             ).normalize().multiplyScalar(newStarDistance).add(star.position);
 
@@ -277,11 +277,13 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
             const myStarBodyObject = starBodies[index];
 
             const children = body.children;
+            let orbitableIndex = 0
             for (let ci = 0; ci < children.length; ci++) {
                 const child = children[ci] as THREE.Mesh;
                 if (!child.userData.orbitable) continue;
 
-                child.rotation.y += .01
+                child.rotation.y += myStarBodyObject.orbitingBodies[orbitableIndex].speed
+                orbitableIndex += 1;
 
             }
         }
