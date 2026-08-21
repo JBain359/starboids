@@ -90,7 +90,7 @@ export const createBoidMesh = (b: Boid, group: THREE.Group) => {
     }
 
     // Adjust scale according to imported model dimensions
-    boidMesh.scale.setScalar(b.size);
+    boidMesh.scale.setScalar(.000000001);
     boidMesh.position.copy(b.position);
 
     group.add(boidMesh);
@@ -173,6 +173,7 @@ export const createStarBody = (body: StarBody, group: THREE.Object3D) => {
         bodyMesh.add(pivot)
     })
 
+    bodyMesh.scale.multiplyScalar(.0001)
     group.add(bodyMesh)
 }
 

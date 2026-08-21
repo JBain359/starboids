@@ -60,7 +60,8 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
     const cameraParams = {
         trailing: 0.02,
         offset: new THREE.Vector3(0, -0.25, 0),
-        cinematicMode: true
+        cinematicMode: true,
+        cameraQuality: 1
     };
 
     // Tweakpane Bindings
@@ -84,6 +85,9 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
         z: { min: -1, max: 1, step: 0.05 }
     });
     cameraPane.addBinding(cameraParams, 'cinematicMode');
+    cameraPane.addBinding(cameraParams, 'cameraQuality', { min: .2, max: 1, step: 0.05 }).on('change', (ev) => {
+        renderer.setSize(window.innerWidth * ev.value, window.innerHeight * ev.value, false);
+    });
 
     // Load HDR Environment
     const hdrLoader = new HDRLoader();
@@ -109,7 +113,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
         size: 0.1,
         color: new THREE.Color(0xffa800),
         wireframe: false,
-        position: new THREE.Vector3(0, 0, 0),
+        position: new THREE.Vector3(5, 5, 5),
         rotation: new THREE.Vector3(THREE.MathUtils.degToRad(90), 0, 0),
         velocity: new THREE.Vector3(Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1).normalize(),
         speed: behaviorParams.speed,
@@ -163,6 +167,9 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
     const renderer = new THREE.WebGLRenderer({ canvas: canvasRef.current, antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.domElement.style.width = '100%';
+    renderer.domElement.style.height = '100%';
+    renderer.domElement.style.imageRendering = 'auto'; // Do NOT use 'pixelated
 
     const orbitControls = new OrbitControls(camera, renderer.domElement);
     orbitControls.enableDamping = true;
@@ -279,11 +286,31 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
             const body = starBodyChildren[index] as THREE.Group;
             const myStarBodyObject = starBodies[index];
 
+            //pop-in
+            if (body.scale.x != 1) {
+                if (body.scale.x < 1) {
+                    body.scale.multiplyScalar(1.1)
+                } else {
+                    body.scale.set(1, 1, 1)
+                }
+            }
+
             const children = body.children;
             let orbitableIndex = 0
             for (let ci = 0; ci < children.length; ci++) {
                 const child = children[ci] as THREE.Mesh;
                 if (!child.userData.orbitable) continue;
+
+                for (let oi = 0; oi < child.children.length; oi++) {
+                    const moon = child.children[oi]
+                    if (moon.scale.x != 1) {
+                        if (moon.scale.x < 1) {
+                            moon.scale.multiplyScalar(1.1)
+                        } else {
+                            moon.scale.set(1, 1, 1)
+                        }
+                    }
+                }
 
                 child.rotation.y += myStarBodyObject.orbitingBodies[orbitableIndex].speed
                 orbitableIndex += 1;
@@ -305,6 +332,14 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
             _forward.copy(myBoidObject.velocity).normalize();
 
             let starDistanceSq = Infinity;
+
+            if (boidMesh.scale.x != myBoidObject.size) {
+                if (boidMesh.scale.x < myBoidObject.size) {
+                    boidMesh.scale.multiplyScalar(1.1)
+                } else {
+                    boidMesh.scale.set(myBoidObject.size, myBoidObject.size, myBoidObject.size)
+                }
+            }
 
             // 1. Star Avoidance
             for (let sbi = 0; sbi < starBodyChildren.length; sbi++) {
@@ -418,6 +453,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
         if (cameraParams.cinematicMode) orbitControls.update();
         renderer.render(scene, camera);
         animFrameId = window.requestAnimationFrame(renderloop);
+
     };
 
     renderloop();
