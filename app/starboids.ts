@@ -220,7 +220,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
             lightIntensity: Math.random() * 100,
             lightRange: Math.random() * 100,
             speed: Math.random() * 0.01 - 0.02,
-            stars: moons > 0 ? { numStars: 500, starRange: 10 } : { numStars: 0, starRange: 0 },
+            stars: moons > 0 ? { numStars: 250, starRange: 10 } : { numStars: 0, starRange: 0 },
             orbitingBodies: Array.from({ length: moons }, () =>
                 generateRandomStarBody(
                     new THREE.Vector3(Math.random(), Math.random(), Math.random())
@@ -281,11 +281,8 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
                 const child = children[ci] as THREE.Mesh;
                 if (!child.userData.orbitable) continue;
 
-                const orbiter = myStarBodyObject.orbitingBodies[ci];
-                if (!orbiter) continue;
+                child.rotation.y += .01
 
-                _orbitAxis.crossVectors(orbiter.position, _facingUser).normalize();
-                child.position.applyAxisAngle(_orbitAxis, orbiter.speed);
             }
         }
 

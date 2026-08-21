@@ -100,7 +100,7 @@ export const createStarBody = (body: StarBody, group: THREE.Object3D) => {
     const bodyMaterial = new THREE.MeshStandardMaterial({ color: body.color, emissive: body.color, emissiveIntensity: body.lightIntensity / 100, metalness: .1, roughness: 1, flatShading: true });
     const bodyGeometry = new THREE.IcosahedronGeometry(body.size, 1)
     const bodyMesh = new THREE.Mesh(bodyGeometry, bodyMaterial)
-    bodyMesh.userData.orbitable = true;
+
 
     const terrainMaterial = new THREE.MeshStandardMaterial({
         color: body.terrainColor, emissive: body.terrainColor, emissiveIntensity: body.lightIntensity / 100, metalness: .6, roughness: .5
@@ -164,9 +164,19 @@ export const createStarBody = (body: StarBody, group: THREE.Object3D) => {
     }
 
     bodyMesh.add(starLight)
+
+
     body.orbitingBodies.forEach((orb) => {
-        createStarBody(orb, bodyMesh)
+        const pivot = new THREE.Group();
+
+        pivot.rotation.x = Math.random() * Math.PI * 2;
+        pivot.rotation.z = Math.random() * Math.PI * 2;
+        pivot.userData.orbitable = true;
+
+        createStarBody(orb, pivot)
+        bodyMesh.add(pivot)
     })
+
     group.add(bodyMesh)
 }
 
