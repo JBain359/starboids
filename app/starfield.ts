@@ -169,11 +169,10 @@ export const createStarBody = (body: StarBody, group: THREE.Object3D) => {
     body.orbitingBodies.forEach((orb) => {
         const pivot = new THREE.Group();
 
-        pivot.rotation.x = Math.random() * Math.PI * 2;
-        pivot.rotation.z = Math.random() * Math.PI * 2;
         pivot.userData.orbitable = true;
 
         createStarBody(orb, pivot)
+        pivot.rotation.setFromVector3(new THREE.Vector3().crossVectors(new THREE.Vector3(0, 0, 1), orb.position))
         bodyMesh.add(pivot)
     })
 

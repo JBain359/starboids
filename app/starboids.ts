@@ -238,7 +238,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
             const newStarDistance = (5 * Math.random() - 5) + behaviorParams.bound * 2;
             const pos = new THREE.Vector3(
                 2 * Math.random() - 1,
-                2 * Math.random() - 1,
+                0, // we'll rotate about the y axis, so lets keep this 0 to keep the rotation centered about the parent planet
                 2 * Math.random() - 1
             ).normalize().multiplyScalar(newStarDistance).add(star.position);
 
