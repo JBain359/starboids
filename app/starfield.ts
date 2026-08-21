@@ -100,6 +100,7 @@ export const createStarBody = (body: StarBody, group: THREE.Object3D) => {
     const bodyMaterial = new THREE.MeshStandardMaterial({ color: body.color, emissive: body.color, emissiveIntensity: body.lightIntensity / 100, metalness: .1, roughness: 1, flatShading: true });
     const bodyGeometry = new THREE.IcosahedronGeometry(body.size, 1)
     const bodyMesh = new THREE.Mesh(bodyGeometry, bodyMaterial)
+    bodyMesh.name = 'core'
 
     const terrainMaterial = new THREE.MeshStandardMaterial({ color: body.terrainColor, emissive: body.terrainColor, emissiveIntensity: body.lightIntensity / 100, metalness: .6, roughness: .5 });
     const terrainGeometry = new THREE.IcosahedronGeometry(body.size, 3)
@@ -139,10 +140,12 @@ export const createStarBody = (body: StarBody, group: THREE.Object3D) => {
     // Recalculate normals for correct lighting
     terrainGeometry.computeVertexNormals();
     const terrainMesh = new THREE.Mesh(terrainGeometry, terrainMaterial)
+    terrainMesh.name = 'terrain'
 
     const atmoMaterial = getFresnelMat({ facingHex: 0x000000, rimHex: body.color.getHex() });
     const atmoGeometry = BufferGeometryUtils.mergeGeometries([terrainGeometry, bodyGeometry]);
     const atmoMesh = new THREE.Mesh(atmoGeometry, atmoMaterial)
+    atmoMesh.name = 'atmosphere'
     atmoMesh.scale.multiplyScalar(1 + body.atmosphereSize / 1000)
 
     bodyMesh.add(atmoMesh)
@@ -160,7 +163,6 @@ export const createStarBody = (body: StarBody, group: THREE.Object3D) => {
     }
 
     bodyMesh.add(starLight)
-
 
     body.orbitingBodies.forEach((orb) => {
         const pivot = new THREE.Group();

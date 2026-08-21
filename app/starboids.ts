@@ -20,12 +20,13 @@ const _cameraLookTarget = new THREE.Vector3();
 const _playerTarget = new THREE.Vector3();
 const _offset = new THREE.Vector3();
 const _v1 = new THREE.Vector3();
+const _uiDisplayObject = new THREE.Mesh();
 
 // Static allocations for boid generation
 const SHIP_WEIGHTS = { 0: 80, 1: 20 };
 
-export default async function starboids(canvasRef: React.RefObject<HTMLCanvasElement | null>) {
-    if (!canvasRef.current) return;
+export default async function starboids(canvasRef: React.RefObject<HTMLCanvasElement | null>, uiCanvasRef: React.RefObject<HTMLCanvasElement | null>) {
+    if (!canvasRef.current || !uiCanvasRef.current) return;
 
     const keysPressed: Record<string, boolean> = {};
 
@@ -37,6 +38,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
 
     // Initialize scene
     const scene = new THREE.Scene();
+    const ui = new THREE.Scene();
     const pane = new Pane();
 
     const cameraPane = pane.addFolder({ title: 'Camera', expanded: false });
@@ -94,6 +96,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
     const hdr = await hdrLoader.loadAsync('./assets/lonely_road_afternoon_puresky_4k.hdr');
     hdr.mapping = THREE.EquirectangularReflectionMapping;
     scene.environment = hdr;
+    ui.environment = hdr;
 
     // Load Meshes in Parallel
     const meshUrls = [
@@ -157,11 +160,15 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
 
     // Camera Setup
     const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.01, 200);
+    const uiCamera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.01, 200);
     const cameraBoid = allBoids.children[0] as THREE.Object3D;
     camera.position.copy(cameraBoid.position);
+    uiCamera.position.copy(cameraBoid.position);
 
     scene.add(allBoids);
     scene.add(allStarBodies);
+    ui.add(_uiDisplayObject)
+    _uiDisplayObject.scale.setScalar(.1)
 
     // Renderer Setup
     const renderer = new THREE.WebGLRenderer({ canvas: canvasRef.current, antialias: true });
@@ -174,10 +181,23 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
     const orbitControls = new OrbitControls(camera, renderer.domElement);
     orbitControls.enableDamping = true;
 
+    const uiRenderer = new THREE.WebGLRenderer({ canvas: uiCanvasRef.current, antialias: true })
+    uiRenderer.setSize(window.innerWidth * .2, window.innerHeight * .2)
+    uiRenderer.domElement.style.width = '20%';
+    uiRenderer.domElement.style.height = '20%';
+    uiRenderer.domElement.style.imageRendering = 'auto'; // Do NOT use 'pixelated
+
+    const uiOrbitControls = new OrbitControls(uiCamera, uiRenderer.domElement);
+    uiOrbitControls.enableDamping = true;
+
     const handleResize = () => {
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
+
+        uiCamera.aspect = window.innerWidth / window.innerHeight;
+        uiCamera.updateProjectionMatrix();
+        uiRenderer.setSize(window.innerWidth * .2, window.innerHeight * .2);
     };
     window.addEventListener("resize", handleResize);
 
@@ -201,9 +221,9 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
             const b = {
                 wireframe: false,
                 position: new THREE.Vector3(
-                    Math.random() * behaviorParams.bound * 2 - behaviorParams.bound,
-                    Math.random() * behaviorParams.bound * 2 - behaviorParams.bound,
-                    Math.random() * behaviorParams.bound * 2 - behaviorParams.bound
+                    Math.random() * behaviorParams.bound * 4 - behaviorParams.bound,
+                    Math.random() * behaviorParams.bound * 4 - behaviorParams.bound,
+                    Math.random() * behaviorParams.bound * 4 - behaviorParams.bound
                 ).add(cameraBoid.position),
                 rotation: new THREE.Vector3(THREE.MathUtils.degToRad(90), 0, 0),
                 velocity: new THREE.Vector3(Math.random() * 100 - 50, Math.random() * 100 - 50, Math.random() * 100 - 50).normalize(),
@@ -451,7 +471,15 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
         }
 
         if (cameraParams.cinematicMode) orbitControls.update();
+        uiOrbitControls.update();
         renderer.render(scene, camera);
+
+        if (_uiDisplayObject.scale.x != 1) {
+            _uiDisplayObject.copy(starBodyChildren[0])
+            _uiDisplayObject.scale.set(1, 1, 1)
+        }
+        _uiDisplayObject.rotation.y += .01
+        uiRenderer.render(ui, uiCamera);
         animFrameId = window.requestAnimationFrame(renderloop);
 
     };
@@ -466,6 +494,8 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
         window.removeEventListener('resize', handleResize);
         pane.dispose();
         orbitControls.dispose();
+        uiOrbitControls.dispose();
         renderer.dispose();
+        uiRenderer.dispose();
     };
 }
