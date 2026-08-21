@@ -101,11 +101,7 @@ export const createStarBody = (body: StarBody, group: THREE.Object3D) => {
     const bodyGeometry = new THREE.IcosahedronGeometry(body.size, 1)
     const bodyMesh = new THREE.Mesh(bodyGeometry, bodyMaterial)
 
-
-    const terrainMaterial = new THREE.MeshStandardMaterial({
-        color: body.terrainColor, emissive: body.terrainColor, emissiveIntensity: body.lightIntensity / 100, metalness: .6, roughness: .5
-    });
-
+    const terrainMaterial = new THREE.MeshStandardMaterial({ color: body.terrainColor, emissive: body.terrainColor, emissiveIntensity: body.lightIntensity / 100, metalness: .6, roughness: .5 });
     const terrainGeometry = new THREE.IcosahedronGeometry(body.size, 3)
 
     // Prepare Perlin Noise generator
@@ -147,7 +143,7 @@ export const createStarBody = (body: StarBody, group: THREE.Object3D) => {
     const atmoMaterial = getFresnelMat({ facingHex: 0x000000, rimHex: body.color.getHex() });
     const atmoGeometry = BufferGeometryUtils.mergeGeometries([terrainGeometry, bodyGeometry]);
     const atmoMesh = new THREE.Mesh(atmoGeometry, atmoMaterial)
-    atmoMesh.scale.multiplyScalar(1.015)
+    atmoMesh.scale.multiplyScalar(1 + body.atmosphereSize / 1000)
 
     bodyMesh.add(atmoMesh)
     bodyMesh.add(terrainMesh)

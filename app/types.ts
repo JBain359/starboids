@@ -29,6 +29,7 @@ export interface StarBody {
     terrainColor: THREE.Color
     seaLevel: number
     emissiveColor: THREE.Color
+    atmosphereSize: number
     position: THREE.Vector3
     lightIntensity: number
     lightRange: number

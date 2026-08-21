@@ -58,7 +58,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
     };
 
     const cameraParams = {
-        trailing: 0.03,
+        trailing: 0.02,
         offset: new THREE.Vector3(0, -0.25, 0),
         cinematicMode: true
     };
@@ -124,6 +124,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
         terrainColor: new THREE.Color(0x2B9720),
         emissiveColor: new THREE.Color(0xffa800),
         seaLevel: 0.25,
+        atmosphereSize: 15,
         position: new THREE.Vector3(0, 0, 0),
         lightIntensity: 20,
         lightRange: 40,
@@ -132,6 +133,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
         orbitingBodies: [{
             size: 0.3,
             seaLevel: 0,
+            atmosphereSize: 0,
             color: new THREE.Color(0xBBC7CE),
             terrainColor: new THREE.Color(0xBBC7CE),
             emissiveColor: new THREE.Color(0xffffff),
@@ -216,6 +218,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
             terrainColor,
             emissiveColor: color,
             seaLevel: Math.random(),
+            atmosphereSize: Math.random() * 100,
             position,
             lightIntensity: Math.random() * 100,
             lightRange: Math.random() * 100,
