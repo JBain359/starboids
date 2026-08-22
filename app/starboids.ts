@@ -24,7 +24,7 @@ const _uiDisplayObject = new THREE.Mesh();
 let _uiDisplayLabels = new THREE.Group();
 const _mouse = new THREE.Vector2();
 let _selectedIndex = -1
-const _uiScale = .3
+const _uiScale = .2
 
 // Static allocations for boid generation
 const SHIP_WEIGHTS = { 0: 80, 1: 20 };
@@ -133,7 +133,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
 
     const starBodies: StarBody[] = [{
         size: 1,
-        name: "Birdth",
+        name: "Birth",
         color: new THREE.Color(0x46ACC2),
         terrainColor: new THREE.Color(0x2B9720),
         emissiveColor: new THREE.Color(0xffa800),
@@ -199,18 +199,15 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
         raycaster.setFromCamera(_mouse, camera);
 
         // Calculate objects intersecting the picking ray
-        // Pass 'true' as the second parameter to check nested/child objects recursively
         const intersects = raycaster.intersectObjects(allStarBodies.children, false)
 
         // Process the results if any intersection occurred
         if (intersects.length > 0) {
-            console.log('clicked!')
             // The first element in the array is always the closest object hit
             const firstHit = intersects[0].object;
 
             _uiDisplayLabels.children = []
             _selectedIndex = allStarBodies.children.findIndex((child) => child.userData == firstHit.userData)
-            console.log(_selectedIndex)
             if (_selectedIndex >= 0) {
                 uiRenderer.domElement.style.scale = '1 1'
                 _uiDisplayObject.children = []
@@ -218,21 +215,18 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
                 _uiDisplayObject.position.setScalar(0)
                 _uiDisplayObject.scale.setScalar(.01)
                 uiCamera.lookAt(_uiDisplayObject.position)
-                console.log(allStarBodies.children[_selectedIndex].name)
 
                 document.getElementById('uiLabel')?.remove()
-                const earthDiv = document.createElement('label');
-                earthDiv.id = 'uiLabel'
-                earthDiv.className = 'planetLabel';
-                earthDiv.textContent = allStarBodies.children[_selectedIndex].name;
-                earthDiv.style.backgroundColor = 'transparent';
-                console.log(earthDiv)
+                const planetDiv = document.createElement('label');
+                planetDiv.id = 'uiLabel'
+                planetDiv.className = 'planetLabel';
+                planetDiv.textContent = allStarBodies.children[_selectedIndex].name;
+                planetDiv.style.backgroundColor = 'transparent';
 
-                const earthLabel = new CSS2DObject(earthDiv);
+                const earthLabel = new CSS2DObject(planetDiv);
                 earthLabel.position.set(-1, 1, 0);
                 earthLabel.center.set(0, 1);
                 _uiDisplayLabels.add(earthLabel)
-                // _uiDisplayObject.position.set(.7, 1, -1.6)
             }
         } else {
 
