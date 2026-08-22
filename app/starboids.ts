@@ -21,6 +21,9 @@ const _playerTarget = new THREE.Vector3();
 const _offset = new THREE.Vector3();
 const _v1 = new THREE.Vector3();
 const _uiDisplayObject = new THREE.Mesh();
+const _mouse = new THREE.Vector2();
+let _selectedIndex = -1
+const _uiScale = .3
 
 // Static allocations for boid generation
 const SHIP_WEIGHTS = { 0: 80, 1: 20 };
@@ -39,6 +42,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
     // Initialize scene
     const scene = new THREE.Scene();
     const ui = new THREE.Scene();
+    const raycaster = new THREE.Raycaster();
     const pane = new Pane();
 
     const cameraPane = pane.addFolder({ title: 'Camera', expanded: false });
@@ -178,13 +182,51 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
     renderer.domElement.style.height = '100%';
     renderer.domElement.style.imageRendering = 'auto'; // Do NOT use 'pixelated
 
+    const registerClick = (event: any) => {
+        const rect = renderer.domElement.getBoundingClientRect();
+
+        // Convert mouse screen coordinates to Normalized Device Coordinates (NDC)
+        // NDC space goes from -1 to +1 on both the X and Y axes
+        _mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        _mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+        // Update the raycaster with the camera and mouse position
+        raycaster.setFromCamera(_mouse, camera);
+
+        // Calculate objects intersecting the picking ray
+        // Pass 'true' as the second parameter to check nested/child objects recursively
+        const intersects = raycaster.intersectObjects(allStarBodies.children, false)
+
+        // Process the results if any intersection occurred
+        if (intersects.length > 0) {
+            // The first element in the array is always the closest object hit
+            const firstHit = intersects[0].object;
+
+            console.log(firstHit);
+            _selectedIndex = allStarBodies.children.findIndex((child) => child.userData == firstHit.userData)
+            console.log(_selectedIndex)
+            if (_selectedIndex >= 0) {
+                uiRenderer.domElement.style.scale = '1 1'
+                _uiDisplayObject.children = []
+                _uiDisplayObject.copy(allStarBodies.children[_selectedIndex])
+                _uiDisplayObject.position.setScalar(0)
+                _uiDisplayObject.scale.setScalar(1)
+                uiCamera.lookAt(_uiDisplayObject.position)
+            }
+        } else {
+            _selectedIndex = -1
+            uiRenderer.domElement.style.scale = '1 0'
+        }
+    }
+    renderer.domElement.addEventListener('click', registerClick)
+
     const orbitControls = new OrbitControls(camera, renderer.domElement);
     orbitControls.enableDamping = true;
 
     const uiRenderer = new THREE.WebGLRenderer({ canvas: uiCanvasRef.current, antialias: true })
-    uiRenderer.setSize(window.innerWidth * .2, window.innerHeight * .2)
-    uiRenderer.domElement.style.width = '20%';
-    uiRenderer.domElement.style.height = '20%';
+    uiRenderer.setSize(window.innerWidth * _uiScale, window.innerHeight * _uiScale)
+    uiRenderer.domElement.style.width = `${_uiScale * 100}%`;
+    uiRenderer.domElement.style.height = `${_uiScale * 100}%`;
     uiRenderer.domElement.style.imageRendering = 'auto'; // Do NOT use 'pixelated
 
     const uiOrbitControls = new OrbitControls(uiCamera, uiRenderer.domElement);
@@ -197,7 +239,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
 
         uiCamera.aspect = window.innerWidth / window.innerHeight;
         uiCamera.updateProjectionMatrix();
-        uiRenderer.setSize(window.innerWidth * .2, window.innerHeight * .2);
+        uiRenderer.setSize(window.innerWidth * _uiScale, window.innerHeight * _uiScale);
     };
     window.addEventListener("resize", handleResize);
 
@@ -474,12 +516,14 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
         uiOrbitControls.update();
         renderer.render(scene, camera);
 
-        if (_uiDisplayObject.scale.x != 1) {
-            _uiDisplayObject.copy(starBodyChildren[0])
-            _uiDisplayObject.scale.set(1, 1, 1)
+        if (_selectedIndex >= 0) {
+            if (_uiDisplayObject.scale.x != 1) {
+                _uiDisplayObject.copy(starBodyChildren[_selectedIndex])
+                _uiDisplayObject.scale.set(1, 1, 1)
+            }
+            _uiDisplayObject.rotation.y += .01
+            uiRenderer.render(ui, uiCamera);
         }
-        _uiDisplayObject.rotation.y += .01
-        uiRenderer.render(ui, uiCamera);
         animFrameId = window.requestAnimationFrame(renderloop);
 
     };
