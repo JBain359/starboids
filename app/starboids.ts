@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { Pane } from "tweakpane";
-import { HDRLoader, OrbitControls } from "three/examples/jsm/Addons.js";
+import { CSS2DObject, CSS2DRenderer, HDRLoader, OrbitControls } from "three/examples/jsm/Addons.js";
 import RandomWeightedChoice from "./randomWeighted";
 import { Boid, StarBody } from './types';
 import { createBoidMesh, createStarBody, loadCrocMesh } from './starfield';
@@ -21,6 +21,7 @@ const _playerTarget = new THREE.Vector3();
 const _offset = new THREE.Vector3();
 const _v1 = new THREE.Vector3();
 const _uiDisplayObject = new THREE.Mesh();
+let _uiDisplayLabels = new THREE.Group();
 const _mouse = new THREE.Vector2();
 let _selectedIndex = -1
 const _uiScale = .3
@@ -30,6 +31,7 @@ const SHIP_WEIGHTS = { 0: 80, 1: 20 };
 
 export default async function starboids(canvasRef: React.RefObject<HTMLCanvasElement | null>, uiCanvasRef: React.RefObject<HTMLCanvasElement | null>) {
     if (!canvasRef.current || !uiCanvasRef.current) return;
+    console.log('hey!')
 
     const keysPressed: Record<string, boolean> = {};
 
@@ -131,6 +133,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
 
     const starBodies: StarBody[] = [{
         size: 1,
+        name: "Birdth",
         color: new THREE.Color(0x46ACC2),
         terrainColor: new THREE.Color(0x2B9720),
         emissiveColor: new THREE.Color(0xffa800),
@@ -142,6 +145,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
         speed: 1,
         stars: { numStars: 500, starRange: 10 },
         orbitingBodies: [{
+            name: 'Moon',
             size: 0.3,
             seaLevel: 0,
             atmosphereSize: 0,
@@ -172,6 +176,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
     scene.add(allBoids);
     scene.add(allStarBodies);
     ui.add(_uiDisplayObject)
+    ui.add(_uiDisplayLabels)
     _uiDisplayObject.scale.setScalar(.1)
 
     // Renderer Setup
@@ -199,10 +204,11 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
 
         // Process the results if any intersection occurred
         if (intersects.length > 0) {
+            console.log('clicked!')
             // The first element in the array is always the closest object hit
             const firstHit = intersects[0].object;
 
-            console.log(firstHit);
+            _uiDisplayLabels.children = []
             _selectedIndex = allStarBodies.children.findIndex((child) => child.userData == firstHit.userData)
             console.log(_selectedIndex)
             if (_selectedIndex >= 0) {
@@ -210,16 +216,35 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
                 _uiDisplayObject.children = []
                 _uiDisplayObject.copy(allStarBodies.children[_selectedIndex])
                 _uiDisplayObject.position.setScalar(0)
-                _uiDisplayObject.scale.setScalar(1)
+                _uiDisplayObject.scale.setScalar(.01)
                 uiCamera.lookAt(_uiDisplayObject.position)
+                console.log(allStarBodies.children[_selectedIndex].name)
+
+                document.getElementById('uiLabel')?.remove()
+                const earthDiv = document.createElement('label');
+                earthDiv.id = 'uiLabel'
+                earthDiv.className = 'planetLabel';
+                earthDiv.textContent = allStarBodies.children[_selectedIndex].name;
+                earthDiv.style.backgroundColor = 'transparent';
+                console.log(earthDiv)
+
+                const earthLabel = new CSS2DObject(earthDiv);
+                earthLabel.position.set(-1, 1, 0);
+                earthLabel.center.set(0, 1);
+                _uiDisplayLabels.add(earthLabel)
+                // _uiDisplayObject.position.set(.7, 1, -1.6)
             }
         } else {
+
+            console.log('removing')
             _selectedIndex = -1
             uiRenderer.domElement.style.scale = '1 0'
+            _uiDisplayLabels.children = []
+            document.getElementById('uiLabel')?.remove()
+
         }
     }
-    renderer.domElement.addEventListener('click', registerClick)
-
+    renderer.domElement.addEventListener('mouseup', registerClick)
     const orbitControls = new OrbitControls(camera, renderer.domElement);
     orbitControls.enableDamping = true;
 
@@ -229,7 +254,16 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
     uiRenderer.domElement.style.height = `${_uiScale * 100}%`;
     uiRenderer.domElement.style.imageRendering = 'auto'; // Do NOT use 'pixelated
 
-    const uiOrbitControls = new OrbitControls(uiCamera, uiRenderer.domElement);
+    const labelRenderer = new CSS2DRenderer();
+    labelRenderer.setSize(window.innerWidth * _uiScale, window.innerHeight * _uiScale);
+    labelRenderer.domElement.style.position = 'fixed';
+    labelRenderer.domElement.style.bottom = '0px';
+    labelRenderer.domElement.style.right = '0px';
+    labelRenderer.domElement.style.color = 'white';
+    labelRenderer.domElement.style.margin = '.5rem';
+    document.body.appendChild(labelRenderer.domElement);
+
+    const uiOrbitControls = new OrbitControls(uiCamera, labelRenderer.domElement);
     uiOrbitControls.enableDamping = true;
 
     const handleResize = () => {
@@ -344,9 +378,8 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
 
         // Rotate Orbiting Bodies
         const starBodyChildren = allStarBodies.children;
-        for (let index = 0; index < starBodyChildren.length; index++) {
-            const body = starBodyChildren[index] as THREE.Group;
-            const myStarBodyObject = starBodies[index];
+        for (let index = -1; index < starBodyChildren.length; index++) {
+            const body = index >= 0 ? starBodyChildren[index] as THREE.Group : _uiDisplayObject;
 
             //pop-in
             if (body.scale.x != 1) {
@@ -363,6 +396,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
                 const child = children[ci] as THREE.Mesh;
                 if (!child.userData.orbitable) continue;
 
+                //the child is the pivot
                 for (let oi = 0; oi < child.children.length; oi++) {
                     const moon = child.children[oi]
                     if (moon.scale.x != 1) {
@@ -373,10 +407,8 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
                         }
                     }
                 }
-
-                child.rotation.y += myStarBodyObject.orbitingBodies[orbitableIndex].speed
+                child.rotation.y += child.children[0].userData.definition.speed
                 orbitableIndex += 1;
-
             }
         }
 
@@ -518,11 +550,14 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
 
         if (_selectedIndex >= 0) {
             if (_uiDisplayObject.scale.x != 1) {
-                _uiDisplayObject.copy(starBodyChildren[_selectedIndex])
-                _uiDisplayObject.scale.set(1, 1, 1)
+                _uiDisplayObject.scale.multiplyScalar(1.1)
             }
-            _uiDisplayObject.rotation.y += .01
+            if (_uiDisplayObject.scale.x > 1) {
+                _uiDisplayObject.scale.setScalar(1)
+            }
+            _uiDisplayObject.rotation.y += .005
             uiRenderer.render(ui, uiCamera);
+            labelRenderer.render(ui, uiCamera);
         }
         animFrameId = window.requestAnimationFrame(renderloop);
 
@@ -536,6 +571,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
         window.removeEventListener('keydown', handleKeyDown);
         window.removeEventListener('keyup', handleKeyUp);
         window.removeEventListener('resize', handleResize);
+        renderer.domElement.removeEventListener('mouseup', registerClick);
         pane.dispose();
         orbitControls.dispose();
         uiOrbitControls.dispose();

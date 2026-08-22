@@ -40,3 +40,7 @@ body {
   scale: 0 0;
   transition: scale 0.2s ease
 }
+
+.planetLable {
+  text-align: center;
+}

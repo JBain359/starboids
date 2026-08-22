@@ -35,6 +35,7 @@ export interface StarBody {
     lightRange: number
     speed: number
     orbitingBodies: StarBody[]
+    name?: string
     stars?: {
         numStars: number
         starRange: number

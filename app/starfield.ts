@@ -4,6 +4,7 @@ import { ImprovedNoise } from 'three/addons/math/ImprovedNoise.js';
 import { getFresnelMat } from './getFresnelMat';
 import { GLTFLoader } from "three/examples/jsm/Addons.js";
 import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
+import getRandomGodName from './gods';
 
 const gltfLoader = new GLTFLoader();
 
@@ -97,10 +98,12 @@ export const createBoidMesh = (b: Boid, group: THREE.Group) => {
 }
 
 export const createStarBody = (body: StarBody, group: THREE.Object3D) => {
+    const starName = getRandomGodName();
+
     const bodyMaterial = new THREE.MeshStandardMaterial({ color: body.color, emissive: body.color, emissiveIntensity: body.lightIntensity / 100, metalness: .1, roughness: 1, flatShading: true });
     const bodyGeometry = new THREE.IcosahedronGeometry(body.size, 1)
     const bodyMesh = new THREE.Mesh(bodyGeometry, bodyMaterial)
-    bodyMesh.name = 'core'
+    bodyMesh.name = body.name ?? starName
     bodyMesh.userData.definition = body
 
 
@@ -142,13 +145,13 @@ export const createStarBody = (body: StarBody, group: THREE.Object3D) => {
     // Recalculate normals for correct lighting
     terrainGeometry.computeVertexNormals();
     const terrainMesh = new THREE.Mesh(terrainGeometry, terrainMaterial)
-    terrainMesh.name = 'terrain'
+    terrainMesh.name = starName + 'terrain'
     terrainMesh.userData.definition = body
 
     const atmoMaterial = getFresnelMat({ facingHex: 0x000000, rimHex: body.color.getHex() });
     const atmoGeometry = BufferGeometryUtils.mergeGeometries([terrainGeometry, bodyGeometry]);
     const atmoMesh = new THREE.Mesh(atmoGeometry, atmoMaterial)
-    atmoMesh.name = 'atmosphere'
+    atmoMesh.name = starName + 'atmosphere'
     atmoMesh.userData.definition = body
     atmoMesh.scale.multiplyScalar(1 + body.atmosphereSize / 1000)
 
