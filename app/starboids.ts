@@ -207,6 +207,11 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
             const firstHit = intersects[0].object;
 
             _uiDisplayLabels.children = []
+            document.getElementById('uiLabel')?.remove()
+            const moonLabels = document.getElementsByClassName('moonLabel')
+            for (let m = 0; m < moonLabels.length; m++) {
+                moonLabels.item(0)?.remove()
+            }
             _selectedIndex = allStarBodies.children.findIndex((child) => child.userData == firstHit.userData)
             if (_selectedIndex >= 0) {
                 uiRenderer.domElement.style.scale = '1 1'
@@ -216,17 +221,34 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
                 _uiDisplayObject.scale.setScalar(.01)
                 uiCamera.lookAt(_uiDisplayObject.position)
 
-                document.getElementById('uiLabel')?.remove()
                 const planetDiv = document.createElement('label');
                 planetDiv.id = 'uiLabel'
                 planetDiv.className = 'planetLabel';
-                planetDiv.textContent = allStarBodies.children[_selectedIndex].name;
+                planetDiv.textContent = _uiDisplayObject.name;
                 planetDiv.style.backgroundColor = 'transparent';
 
                 const earthLabel = new CSS2DObject(planetDiv);
                 earthLabel.position.set(-1, 1, 0);
                 earthLabel.center.set(0, 1);
                 _uiDisplayLabels.add(earthLabel)
+
+                console.log(_uiDisplayObject)
+                _uiDisplayObject.children.filter((child) => child.isGroup).forEach((body) => {
+                    const moonDiv = document.createElement('label');
+                    body.rotation.x = 0
+                    body.rotation.y = 0
+                    body.rotation.z = 0
+                    console.log(body.children[0])
+                    moonDiv.className = 'moonLabel';
+                    moonDiv.textContent = body.children[0].name;
+                    moonDiv.style.backgroundColor = 'transparent';
+                    moonDiv.style.color = 'white';
+
+                    const moonLabel = new CSS2DObject(moonDiv);
+                    moonLabel.position.copy(body.children[0].position);
+                    moonLabel.center.set(0, 1);
+                    _uiDisplayLabels.add(moonLabel)
+                })
             }
         } else {
 
@@ -235,6 +257,10 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
             uiRenderer.domElement.style.scale = '1 0'
             _uiDisplayLabels.children = []
             document.getElementById('uiLabel')?.remove()
+            const moonLabels = document.getElementsByClassName('moonLabel')
+            for (let m = 0; m < moonLabels.length; m++) {
+                moonLabels.item(0)?.remove()
+            }
 
         }
     }
@@ -320,7 +346,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
             lightIntensity: Math.random() * 100,
             lightRange: Math.random() * 100,
             speed: Math.random() * 0.01 - 0.02,
-            stars: moons > 0 ? { numStars: 250, starRange: 10 } : { numStars: 0, starRange: 0 },
+            stars: moons > 0 ? { numStars: 150, starRange: 10 } : { numStars: 0, starRange: 0 },
             orbitingBodies: Array.from({ length: moons }, () =>
                 generateRandomStarBody(
                     new THREE.Vector3(Math.random(), Math.random(), Math.random())
@@ -372,7 +398,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
 
         // Rotate Orbiting Bodies
         const starBodyChildren = allStarBodies.children;
-        for (let index = -1; index < starBodyChildren.length; index++) {
+        for (let index = 0; index < starBodyChildren.length; index++) {
             const body = index >= 0 ? starBodyChildren[index] as THREE.Group : _uiDisplayObject;
 
             //pop-in
@@ -549,7 +575,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
             if (_uiDisplayObject.scale.x > 1) {
                 _uiDisplayObject.scale.setScalar(1)
             }
-            _uiDisplayObject.rotation.y += .005
+            ui.rotation.y += .005
             uiRenderer.render(ui, uiCamera);
             labelRenderer.render(ui, uiCamera);
         }

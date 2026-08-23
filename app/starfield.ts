@@ -177,13 +177,18 @@ export const createStarBody = (body: StarBody, group: THREE.Object3D) => {
         pivot.userData.orbitable = true;
         orb.position.y = 0;
 
-        createStarBody(orb, pivot)
+        const moon = createStarBody(orb, pivot)
         pivot.rotation.setFromVector3(new THREE.Vector3().crossVectors(new THREE.Vector3(0, 0, 1), orb.position))
         bodyMesh.add(pivot)
+        bodyMesh.userData.bodies = {
+            [moon.name]: moon,
+            ...bodyMesh.userData.bodies
+        }
     })
 
     bodyMesh.scale.multiplyScalar(.0001)
     group.add(bodyMesh)
+    return bodyMesh
 }
 
 export const loadCrocMesh = async (url: string) => {
