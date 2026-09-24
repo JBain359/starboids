@@ -74,24 +74,24 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
 
     // Tweakpane Bindings
     behaviorPane.addBinding(behaviorParams, 'numBoids', { min: 0, max: 200, step: 1 });
-    behaviorPane.addBinding(behaviorParams, 'friendliness', { min: 0, max: 1, step: 0.05 });
-    behaviorPane.addBinding(behaviorParams, 'friendlyStrength', { min: 0, max: 2, step: 0.05 });
-    behaviorPane.addBinding(behaviorParams, 'friendlinessRange', { min: 0, max: 5, step: 0.1 });
-    behaviorPane.addBinding(behaviorParams, 'friendlyDot', { min: -1, max: 1, step: 0.1 });
-    behaviorPane.addBinding(behaviorParams, 'windDot', { min: -1, max: 1, step: 0.1 });
-    behaviorPane.addBinding(behaviorParams, 'personalSpaceMaxDistance', { min: 0, max: 10, step: 0.1 });
-    behaviorPane.addBinding(behaviorParams, 'personalSpaceDot', { min: -1, max: 1, step: 0.1 });
-    behaviorPane.addBinding(behaviorParams, 'bound', { min: 1, max: 20, step: 1 });
-    behaviorPane.addBinding(behaviorParams, 'boundPadding', { min: 0, max: behaviorParams.bound, step: 0.5 });
-    behaviorPane.addBinding(behaviorParams, 'steeringStrength', { min: -1, max: 2, step: 0.05 });
-    behaviorPane.addBinding(behaviorParams, 'speed', { min: 0, max: 1, step: 0.05 });
+    // behaviorPane.addBinding(behaviorParams, 'friendliness', { min: 0, max: 1, step: 0.05 });
+    // behaviorPane.addBinding(behaviorParams, 'friendlyStrength', { min: 0, max: 2, step: 0.05 });
+    // behaviorPane.addBinding(behaviorParams, 'friendlinessRange', { min: 0, max: 5, step: 0.1 });
+    // behaviorPane.addBinding(behaviorParams, 'friendlyDot', { min: -1, max: 1, step: 0.1 });
+    // behaviorPane.addBinding(behaviorParams, 'windDot', { min: -1, max: 1, step: 0.1 });
+    // behaviorPane.addBinding(behaviorParams, 'personalSpaceMaxDistance', { min: 0, max: 10, step: 0.1 });
+    // behaviorPane.addBinding(behaviorParams, 'personalSpaceDot', { min: -1, max: 1, step: 0.1 });
+    // behaviorPane.addBinding(behaviorParams, 'bound', { min: 1, max: 20, step: 1 });
+    // behaviorPane.addBinding(behaviorParams, 'boundPadding', { min: 0, max: behaviorParams.bound, step: 0.5 });
+    // behaviorPane.addBinding(behaviorParams, 'steeringStrength', { min: -1, max: 2, step: 0.05 });
+    // behaviorPane.addBinding(behaviorParams, 'speed', { min: 0, max: 1, step: 0.05 });
 
-    cameraPane.addBinding(cameraParams, 'trailing', { min: 0, max: 1, step: 0.0005 });
-    cameraPane.addBinding(cameraParams, 'offset', {
-        x: { min: -1, max: 1, step: 0.05 },
-        y: { min: -1, max: 1, step: 0.05 },
-        z: { min: -1, max: 1, step: 0.05 }
-    });
+    // cameraPane.addBinding(cameraParams, 'trailing', { min: 0, max: 1, step: 0.0005 });
+    // cameraPane.addBinding(cameraParams, 'offset', {
+    //     x: { min: -1, max: 1, step: 0.05 },
+    //     y: { min: -1, max: 1, step: 0.05 },
+    //     z: { min: -1, max: 1, step: 0.05 }
+    // });
     cameraPane.addBinding(cameraParams, 'cinematicMode');
     cameraPane.addBinding(cameraParams, 'cameraQuality', { min: .2, max: 1, step: 0.05 }).on('change', (ev) => {
         renderer.setSize(window.innerWidth * ev.value, window.innerHeight * ev.value, false);
@@ -233,7 +233,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
                 _uiDisplayLabels.add(earthLabel)
 
                 console.log(_uiDisplayObject)
-                _uiDisplayObject.children.filter((child) => child.isGroup).forEach((body) => {
+                _uiDisplayObject.children.filter((child) => (child as THREE.Group).isGroup).forEach((body) => {
                     const moonDiv = document.createElement('label');
                     body.rotation.x = 0
                     body.rotation.y = 0
