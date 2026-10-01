@@ -1,9 +1,14 @@
 import * as THREE from "three";
 import { Pane } from "tweakpane";
-import { CSS2DObject, CSS2DRenderer, HDRLoader, OrbitControls } from "three/examples/jsm/Addons.js";
+import {
+  CSS2DObject,
+  CSS2DRenderer,
+  HDRLoader,
+  OrbitControls,
+} from "three/examples/jsm/Addons.js";
 import RandomWeightedChoice from "./randomWeighted";
-import { Boid, StarBody } from './types';
-import { createBoidMesh, createStarBody, loadCrocMesh } from './starfield';
+import { Boid, StarBody } from "./types";
+import { createBoidMesh, createStarBody, loadCrocMesh } from "./starfield";
 
 // Pre-allocated Vector Scratchpad (Eliminates GC in render loop)
 const _orbitAxis = new THREE.Vector3();
@@ -23,581 +28,725 @@ const _v1 = new THREE.Vector3();
 const _uiDisplayObject = new THREE.Mesh();
 let _uiDisplayLabels = new THREE.Group();
 const _mouse = new THREE.Vector2();
-let _selectedIndex = -1
-const _uiScale = .2
+let _selectedIndex = -1;
+const _uiScale = 0.2;
 
 // Static allocations for boid generation
 const SHIP_WEIGHTS = { 0: 80, 1: 20 };
 
-export default async function starboids(canvasRef: React.RefObject<HTMLCanvasElement | null>, uiCanvasRef: React.RefObject<HTMLCanvasElement | null>) {
-    if (!canvasRef.current || !uiCanvasRef.current) return;
-    console.log('hey!')
+export default async function starboids(
+  canvasRef: React.RefObject<HTMLCanvasElement | null>,
+  uiCanvasRef: React.RefObject<HTMLCanvasElement | null>,
+) {
+  if (!canvasRef.current || !uiCanvasRef.current) return;
+  console.log("hey!");
 
-    const keysPressed: Record<string, boolean> = {};
+  const keysPressed: Record<string, boolean> = {};
 
-    const handleKeyDown = (e: KeyboardEvent) => { keysPressed[e.code] = true; };
-    const handleKeyUp = (e: KeyboardEvent) => { keysPressed[e.code] = false; };
+  const handleKeyDown = (e: KeyboardEvent) => {
+    keysPressed[e.code] = true;
+  };
+  const handleKeyUp = (e: KeyboardEvent) => {
+    keysPressed[e.code] = false;
+  };
 
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
+  window.addEventListener("keydown", handleKeyDown);
+  window.addEventListener("keyup", handleKeyUp);
 
-    // Initialize scene
-    const scene = new THREE.Scene();
-    const ui = new THREE.Scene();
-    const raycaster = new THREE.Raycaster();
-    const pane = new Pane();
+  // Initialize scene
+  const scene = new THREE.Scene();
+  const ui = new THREE.Scene();
+  const raycaster = new THREE.Raycaster();
+  const pane = new Pane();
 
-    const cameraPane = pane.addFolder({ title: 'Camera', expanded: false });
-    const behaviorPane = pane.addFolder({ title: 'Boid Behavior', expanded: false });
+  const cameraPane = pane.addFolder({ title: "Camera", expanded: false });
+  const behaviorPane = pane.addFolder({
+    title: "Boid Behavior",
+    expanded: false,
+  });
 
-    const behaviorParams = {
-        numBoids: 100,
-        friendliness: 0.35,
-        friendlyStrength: 1,
-        friendlinessRange: 5,
-        friendlyDot: 0.6,
-        windDot: -0.1,
-        personalSpaceDot: -0.1,
-        personalSpaceMaxDistance: 5,
-        bound: 10,
-        boundPadding: 1.5,
-        steeringStrength: 0.02,
-        speed: 0.05
-    };
+  const behaviorParams = {
+    numBoids: 100,
+    friendliness: 0.35,
+    friendlyStrength: 1,
+    friendlinessRange: 5,
+    friendlyDot: 0.6,
+    windDot: -0.1,
+    personalSpaceDot: -0.1,
+    personalSpaceMaxDistance: 5,
+    bound: 10,
+    boundPadding: 1.5,
+    steeringStrength: 0.02,
+    speed: 0.05,
+  };
 
-    const cameraParams = {
-        trailing: 0.02,
-        offset: new THREE.Vector3(0, -0.25, 0),
-        cinematicMode: true,
-        freeCamera: false,
-        cameraQuality: 1
-    };
+  const cameraParams = {
+    trailing: 0.02,
+    offset: new THREE.Vector3(0, -0.25, 0),
+    cinematicMode: true,
+    freeCamera: false,
+    cameraQuality: 1,
+  };
 
-    // Tweakpane Bindings
-    behaviorPane.addBinding(behaviorParams, 'numBoids', { min: 0, max: 200, step: 1 });
-    // behaviorPane.addBinding(behaviorParams, 'friendliness', { min: 0, max: 1, step: 0.05 });
-    // behaviorPane.addBinding(behaviorParams, 'friendlyStrength', { min: 0, max: 2, step: 0.05 });
-    // behaviorPane.addBinding(behaviorParams, 'friendlinessRange', { min: 0, max: 5, step: 0.1 });
-    // behaviorPane.addBinding(behaviorParams, 'friendlyDot', { min: -1, max: 1, step: 0.1 });
-    // behaviorPane.addBinding(behaviorParams, 'windDot', { min: -1, max: 1, step: 0.1 });
-    // behaviorPane.addBinding(behaviorParams, 'personalSpaceMaxDistance', { min: 0, max: 10, step: 0.1 });
-    // behaviorPane.addBinding(behaviorParams, 'personalSpaceDot', { min: -1, max: 1, step: 0.1 });
-    // behaviorPane.addBinding(behaviorParams, 'bound', { min: 1, max: 20, step: 1 });
-    // behaviorPane.addBinding(behaviorParams, 'boundPadding', { min: 0, max: behaviorParams.bound, step: 0.5 });
-    // behaviorPane.addBinding(behaviorParams, 'steeringStrength', { min: -1, max: 2, step: 0.05 });
-    // behaviorPane.addBinding(behaviorParams, 'speed', { min: 0, max: 1, step: 0.05 });
+  // Tweakpane Bindings
+  behaviorPane.addBinding(behaviorParams, "numBoids", {
+    min: 0,
+    max: 200,
+    step: 1,
+  });
+  // behaviorPane.addBinding(behaviorParams, 'friendliness', { min: 0, max: 1, step: 0.05 });
+  // behaviorPane.addBinding(behaviorParams, 'friendlyStrength', { min: 0, max: 2, step: 0.05 });
+  // behaviorPane.addBinding(behaviorParams, 'friendlinessRange', { min: 0, max: 5, step: 0.1 });
+  // behaviorPane.addBinding(behaviorParams, 'friendlyDot', { min: -1, max: 1, step: 0.1 });
+  // behaviorPane.addBinding(behaviorParams, 'windDot', { min: -1, max: 1, step: 0.1 });
+  // behaviorPane.addBinding(behaviorParams, 'personalSpaceMaxDistance', { min: 0, max: 10, step: 0.1 });
+  // behaviorPane.addBinding(behaviorParams, 'personalSpaceDot', { min: -1, max: 1, step: 0.1 });
+  // behaviorPane.addBinding(behaviorParams, 'bound', { min: 1, max: 20, step: 1 });
+  // behaviorPane.addBinding(behaviorParams, 'boundPadding', { min: 0, max: behaviorParams.bound, step: 0.5 });
+  // behaviorPane.addBinding(behaviorParams, 'steeringStrength', { min: -1, max: 2, step: 0.05 });
+  // behaviorPane.addBinding(behaviorParams, 'speed', { min: 0, max: 1, step: 0.05 });
 
-    // cameraPane.addBinding(cameraParams, 'trailing', { min: 0, max: 1, step: 0.0005 });
-    // cameraPane.addBinding(cameraParams, 'offset', {
-    //     x: { min: -1, max: 1, step: 0.05 },
-    //     y: { min: -1, max: 1, step: 0.05 },
-    //     z: { min: -1, max: 1, step: 0.05 }
-    // });
-    cameraPane.addBinding(cameraParams, 'cinematicMode');
-    cameraPane.addBinding(cameraParams, 'freeCamera');
-    cameraPane.addBinding(cameraParams, 'cameraQuality', { min: .2, max: 1, step: 0.05 }).on('change', (ev) => {
-        renderer.setSize(window.innerWidth * ev.value, window.innerHeight * ev.value, false);
+  // cameraPane.addBinding(cameraParams, 'trailing', { min: 0, max: 1, step: 0.0005 });
+  // cameraPane.addBinding(cameraParams, 'offset', {
+  //     x: { min: -1, max: 1, step: 0.05 },
+  //     y: { min: -1, max: 1, step: 0.05 },
+  //     z: { min: -1, max: 1, step: 0.05 }
+  // });
+  cameraPane.addBinding(cameraParams, "cinematicMode");
+  cameraPane.addBinding(cameraParams, "freeCamera");
+  cameraPane
+    .addBinding(cameraParams, "cameraQuality", { min: 0.2, max: 1, step: 0.05 })
+    .on("change", (ev) => {
+      renderer.setSize(
+        window.innerWidth * ev.value,
+        window.innerHeight * ev.value,
+        false,
+      );
     });
 
-    // Load HDR Environment
-    const hdrLoader = new HDRLoader();
-    const hdr = await hdrLoader.loadAsync('./assets/lonely_road_afternoon_puresky_4k.hdr');
-    hdr.mapping = THREE.EquirectangularReflectionMapping;
-    scene.environment = hdr;
-    ui.environment = hdr;
+  // Load HDR Environment
+  const hdrLoader = new HDRLoader();
+  const hdr = await hdrLoader.loadAsync(
+    "./assets/lonely_road_afternoon_puresky_4k.hdr",
+  );
+  hdr.mapping = THREE.EquirectangularReflectionMapping;
+  scene.environment = hdr;
+  ui.environment = hdr;
 
-    // Load Meshes in Parallel
-    const meshUrls = [
-        './assets/BoidCraft_Chassis.gltf',
-        './assets/BoidCraft_Wing.gltf',
-        './assets/BoidCraftSpeedy.gltf'
-    ];
-    const [chassis, wing, speedy] = await Promise.all(meshUrls.map(loadCrocMesh));
+  // Load Meshes in Parallel
+  const meshUrls = [
+    "./assets/BoidCraft_Chassis.gltf",
+    "./assets/BoidCraft_Wing.gltf",
+    "./assets/BoidCraftSpeedy.gltf",
+  ];
+  const [chassis, wing, speedy] = await Promise.all(meshUrls.map(loadCrocMesh));
 
-    const shipTypes = [
-        { size: 0.1, wingL: wing, wingR: wing, chassis: chassis, color: new THREE.Color('white'), speed: behaviorParams.speed },
-        { size: 0.25, wingL: undefined, wingR: undefined, chassis: speedy, color: new THREE.Color("rgb(37, 69, 139)"), speed: behaviorParams.speed * 1.5 }
-    ];
+  const shipTypes = [
+    {
+      size: 0.1,
+      wingL: wing,
+      wingR: wing,
+      chassis: chassis,
+      color: new THREE.Color("white"),
+      speed: behaviorParams.speed,
+    },
+    {
+      size: 0.25,
+      wingL: undefined,
+      wingR: undefined,
+      chassis: speedy,
+      color: new THREE.Color("rgb(37, 69, 139)"),
+      speed: behaviorParams.speed * 1.5,
+    },
+  ];
 
-    // Initialize Leader Boid
-    const boids: Boid[] = [{
-        size: 0.1,
-        color: new THREE.Color(0xffa800),
-        wireframe: false,
-        position: new THREE.Vector3(5, 5, 5),
-        rotation: new THREE.Vector3(THREE.MathUtils.degToRad(90), 0, 0),
-        velocity: new THREE.Vector3(Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1).normalize(),
-        speed: behaviorParams.speed,
-        wingL: wing,
-        wingR: wing,
-        chassis: chassis
-    }];
+  // Initialize Leader Boid
+  const boids: Boid[] = [
+    {
+      size: 0.1,
+      color: new THREE.Color(0xffa800),
+      wireframe: false,
+      position: new THREE.Vector3(5, 5, 5),
+      rotation: new THREE.Vector3(THREE.MathUtils.degToRad(90), 0, 0),
+      velocity: new THREE.Vector3(
+        Math.random() * 2 - 1,
+        Math.random() * 2 - 1,
+        Math.random() * 2 - 1,
+      ).normalize(),
+      speed: behaviorParams.speed,
+      wingL: wing,
+      wingR: wing,
+      chassis: chassis,
+    },
+  ];
 
-    const starBodies: StarBody[] = [{
-        size: 1,
-        name: "Birth",
-        color: new THREE.Color(0x46ACC2),
-        terrainColor: new THREE.Color(0x2B9720),
-        emissiveColor: new THREE.Color(0xffa800),
-        seaLevel: 0.25,
-        atmosphereSize: 15,
-        position: new THREE.Vector3(0, 0, 0),
-        lightIntensity: 20,
-        lightRange: 40,
-        speed: 1,
-        stars: { numStars: 500, starRange: 10 },
-        orbitingBodies: [{
-            name: 'Moon',
-            size: 0.3,
-            seaLevel: 0,
-            atmosphereSize: 0,
-            color: new THREE.Color(0xBBC7CE),
-            terrainColor: new THREE.Color(0xBBC7CE),
-            emissiveColor: new THREE.Color(0xffffff),
-            position: new THREE.Vector3(3, 0, 3),
-            lightIntensity: 10,
-            lightRange: 40,
-            speed: 0.01,
-            orbitingBodies: []
-        }]
-    }];
+  const starBodies: StarBody[] = [
+    {
+      size: 1,
+      name: "Birth",
+      color: new THREE.Color(0x46acc2),
+      terrainColor: new THREE.Color(0x2b9720),
+      emissiveColor: new THREE.Color(0xffa800),
+      seaLevel: 0.25,
+      atmosphereSize: 15,
+      position: new THREE.Vector3(0, 0, 0),
+      lightIntensity: 20,
+      lightRange: 40,
+      speed: 1,
+      stars: { numStars: 500, starRange: 10 },
+      orbitingBodies: [
+        {
+          name: "Moon",
+          size: 0.3,
+          seaLevel: 0,
+          atmosphereSize: 0,
+          color: new THREE.Color(0xbbc7ce),
+          terrainColor: new THREE.Color(0xbbc7ce),
+          emissiveColor: new THREE.Color(0xffffff),
+          position: new THREE.Vector3(3, 0, 3),
+          lightIntensity: 10,
+          lightRange: 40,
+          speed: 0.01,
+          orbitingBodies: [],
+        },
+      ],
+    },
+  ];
 
-    const allStarBodies = new THREE.Group();
-    const allBoids = new THREE.Group();
+  const allStarBodies = new THREE.Group();
+  const allBoids = new THREE.Group();
 
-    starBodies.forEach((body) => createStarBody(body, allStarBodies));
-    boids.forEach((boid) => createBoidMesh(boid, allBoids));
+  starBodies.forEach((body) => createStarBody(body, allStarBodies));
+  boids.forEach((boid) => createBoidMesh(boid, allBoids));
 
-    // Camera Setup
-    const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.01, 200);
-    const uiCamera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.01, 200);
-    const cameraBoid = allBoids.children[0] as THREE.Object3D;
-    camera.position.copy(cameraBoid.position);
-    uiCamera.position.copy(cameraBoid.position);
+  // Camera Setup
+  const camera = new THREE.PerspectiveCamera(
+    35,
+    window.innerWidth / window.innerHeight,
+    0.01,
+    200,
+  );
+  const uiCamera = new THREE.PerspectiveCamera(
+    35,
+    window.innerWidth / window.innerHeight,
+    0.01,
+    200,
+  );
+  const cameraBoid = allBoids.children[0] as THREE.Object3D;
+  camera.position.copy(cameraBoid.position);
+  uiCamera.position.copy(cameraBoid.position);
 
-    scene.add(allBoids);
-    scene.add(allStarBodies);
-    ui.add(_uiDisplayObject)
-    ui.add(_uiDisplayLabels)
-    _uiDisplayObject.scale.setScalar(.1)
+  scene.add(allBoids);
+  scene.add(allStarBodies);
+  ui.add(_uiDisplayObject);
+  ui.add(_uiDisplayLabels);
+  _uiDisplayObject.scale.setScalar(0.1);
 
-    // Renderer Setup
-    const renderer = new THREE.WebGLRenderer({ canvas: canvasRef.current, antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.domElement.style.width = '100%';
-    renderer.domElement.style.height = '100%';
-    renderer.domElement.style.imageRendering = 'auto'; // Do NOT use 'pixelated
+  // Renderer Setup
+  const renderer = new THREE.WebGLRenderer({
+    canvas: canvasRef.current,
+    antialias: true,
+  });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.domElement.style.width = "100%";
+  renderer.domElement.style.height = "100%";
+  renderer.domElement.style.imageRendering = "auto"; // Do NOT use 'pixelated
 
-    const registerClick = (event: any) => {
-        const rect = renderer.domElement.getBoundingClientRect();
+  const registerClick = (event: any) => {
+    const rect = renderer.domElement.getBoundingClientRect();
 
-        // Convert mouse screen coordinates to Normalized Device Coordinates (NDC)
-        // NDC space goes from -1 to +1 on both the X and Y axes
-        _mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-        _mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    // Convert mouse screen coordinates to Normalized Device Coordinates (NDC)
+    // NDC space goes from -1 to +1 on both the X and Y axes
+    _mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    _mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
-        // Update the raycaster with the camera and mouse position
-        raycaster.setFromCamera(_mouse, camera);
+    // Update the raycaster with the camera and mouse position
+    raycaster.setFromCamera(_mouse, camera);
 
-        // Calculate objects intersecting the picking ray
-        const intersects = raycaster.intersectObjects(allStarBodies.children, false)
+    // Calculate objects intersecting the picking ray
+    const intersects = raycaster.intersectObjects(
+      allStarBodies.children,
+      false,
+    );
 
-        // Process the results if any intersection occurred
-        if (intersects.length > 0) {
-            // The first element in the array is always the closest object hit
-            const firstHit = intersects[0].object;
+    // Process the results if any intersection occurred
+    if (intersects.length > 0) {
+      // The first element in the array is always the closest object hit
+      const firstHit = intersects[0].object;
 
-            _uiDisplayLabels.children = []
-            document.getElementById('uiLabel')?.remove()
-            const moonLabels = document.getElementsByClassName('moonLabel')
-            for (let m = 0; m < moonLabels.length; m++) {
-                moonLabels.item(0)?.remove()
-            }
-            _selectedIndex = allStarBodies.children.findIndex((child) => child.userData == firstHit.userData)
-            if (_selectedIndex >= 0) {
-                uiRenderer.domElement.style.scale = '1 1'
-                _uiDisplayObject.children = []
-                _uiDisplayObject.copy(allStarBodies.children[_selectedIndex])
-                _uiDisplayObject.position.setScalar(0)
-                _uiDisplayObject.scale.setScalar(.01)
-                uiCamera.lookAt(_uiDisplayObject.position)
+      _uiDisplayLabels.children = [];
+      document.getElementById("uiLabel")?.remove();
+      const moonLabels = document.getElementsByClassName("moonLabel");
+      for (let m = 0; m < moonLabels.length; m++) {
+        moonLabels.item(0)?.remove();
+      }
+      _selectedIndex = allStarBodies.children.findIndex(
+        (child) => child.userData == firstHit.userData,
+      );
+      if (_selectedIndex >= 0) {
+        uiRenderer.domElement.style.scale = "1 1";
+        _uiDisplayObject.children = [];
+        _uiDisplayObject.copy(allStarBodies.children[_selectedIndex]);
+        _uiDisplayObject.position.setScalar(0);
+        _uiDisplayObject.scale.setScalar(0.01);
+        uiCamera.lookAt(_uiDisplayObject.position);
 
-                const planetDiv = document.createElement('label');
-                planetDiv.id = 'uiLabel'
-                planetDiv.className = 'planetLabel';
-                planetDiv.textContent = _uiDisplayObject.name;
-                planetDiv.style.backgroundColor = 'transparent';
+        const planetDiv = document.createElement("label");
+        planetDiv.id = "uiLabel";
+        planetDiv.className = "planetLabel";
+        planetDiv.textContent = _uiDisplayObject.name;
+        planetDiv.style.backgroundColor = "transparent";
 
-                const earthLabel = new CSS2DObject(planetDiv);
-                earthLabel.position.set(-1, 1, 0);
-                earthLabel.center.set(0, 1);
-                _uiDisplayLabels.add(earthLabel)
+        const earthLabel = new CSS2DObject(planetDiv);
+        earthLabel.position.set(-1, 1, 0);
+        earthLabel.center.set(0, 1);
+        _uiDisplayLabels.add(earthLabel);
 
-                console.log(_uiDisplayObject)
-                _uiDisplayObject.children.filter((child) => (child as THREE.Group).isGroup).forEach((body) => {
-                    const moonDiv = document.createElement('label');
-                    body.rotation.x = 0
-                    body.rotation.y = 0
-                    body.rotation.z = 0
-                    console.log(body.children[0])
-                    moonDiv.className = 'moonLabel';
-                    moonDiv.textContent = body.children[0].name;
-                    moonDiv.style.backgroundColor = 'transparent';
-                    moonDiv.style.color = 'white';
+        console.log(_uiDisplayObject);
+        _uiDisplayObject.children
+          .filter((child) => (child as THREE.Group).isGroup)
+          .forEach((body) => {
+            const moonDiv = document.createElement("label");
+            body.rotation.x = 0;
+            body.rotation.y = 0;
+            body.rotation.z = 0;
+            console.log(body.children[0]);
+            moonDiv.className = "moonLabel";
+            moonDiv.textContent = body.children[0].name;
+            moonDiv.style.backgroundColor = "transparent";
+            moonDiv.style.color = "white";
 
-                    const moonLabel = new CSS2DObject(moonDiv);
-                    moonLabel.position.copy(body.children[0].position);
-                    moonLabel.center.set(0, 1);
-                    _uiDisplayLabels.add(moonLabel)
-                })
-            }
-        } else {
-
-            console.log('removing')
-            _selectedIndex = -1
-            uiRenderer.domElement.style.scale = '1 0'
-            _uiDisplayLabels.children = []
-            document.getElementById('uiLabel')?.remove()
-            const moonLabels = document.getElementsByClassName('moonLabel')
-            for (let m = 0; m < moonLabels.length; m++) {
-                moonLabels.item(0)?.remove()
-            }
-
-        }
+            const moonLabel = new CSS2DObject(moonDiv);
+            moonLabel.position.copy(body.children[0].position);
+            moonLabel.center.set(0, 1);
+            _uiDisplayLabels.add(moonLabel);
+          });
+      }
+    } else {
+      console.log("removing");
+      _selectedIndex = -1;
+      uiRenderer.domElement.style.scale = "1 0";
+      _uiDisplayLabels.children = [];
+      document.getElementById("uiLabel")?.remove();
+      const moonLabels = document.getElementsByClassName("moonLabel");
+      for (let m = 0; m < moonLabels.length; m++) {
+        moonLabels.item(0)?.remove();
+      }
     }
-    renderer.domElement.addEventListener('mouseup', registerClick)
-    const orbitControls = new OrbitControls(camera, renderer.domElement);
-    orbitControls.enableDamping = true;
+  };
+  renderer.domElement.addEventListener("mouseup", registerClick);
+  const orbitControls = new OrbitControls(camera, renderer.domElement);
+  orbitControls.enableDamping = true;
 
-    const uiRenderer = new THREE.WebGLRenderer({ canvas: uiCanvasRef.current, antialias: true })
-    uiRenderer.setSize(window.innerWidth * _uiScale, window.innerHeight * _uiScale)
-    uiRenderer.domElement.style.width = `${_uiScale * 100}%`;
-    uiRenderer.domElement.style.height = `${_uiScale * 100}%`;
-    uiRenderer.domElement.style.imageRendering = 'auto'; // Do NOT use 'pixelated
+  const uiRenderer = new THREE.WebGLRenderer({
+    canvas: uiCanvasRef.current,
+    antialias: true,
+  });
+  uiRenderer.setSize(
+    window.innerWidth * _uiScale,
+    window.innerHeight * _uiScale,
+  );
+  uiRenderer.domElement.style.width = `${_uiScale * 100}%`;
+  uiRenderer.domElement.style.height = `${_uiScale * 100}%`;
+  uiRenderer.domElement.style.imageRendering = "auto"; // Do NOT use 'pixelated
 
-    const labelRenderer = new CSS2DRenderer();
-    labelRenderer.setSize(window.innerWidth * _uiScale, window.innerHeight * _uiScale);
-    labelRenderer.domElement.style.position = 'fixed';
-    labelRenderer.domElement.style.bottom = '0px';
-    labelRenderer.domElement.style.right = '0px';
-    labelRenderer.domElement.style.color = 'white';
-    labelRenderer.domElement.style.margin = '.5rem';
-    document.body.appendChild(labelRenderer.domElement);
+  const labelRenderer = new CSS2DRenderer();
+  labelRenderer.setSize(
+    window.innerWidth * _uiScale,
+    window.innerHeight * _uiScale,
+  );
+  labelRenderer.domElement.style.position = "fixed";
+  labelRenderer.domElement.style.bottom = "0px";
+  labelRenderer.domElement.style.right = "0px";
+  labelRenderer.domElement.style.color = "white";
+  labelRenderer.domElement.style.margin = ".5rem";
+  document.body.appendChild(labelRenderer.domElement);
 
-    const uiOrbitControls = new OrbitControls(uiCamera, labelRenderer.domElement);
-    uiOrbitControls.enableDamping = true;
+  const uiOrbitControls = new OrbitControls(uiCamera, labelRenderer.domElement);
+  uiOrbitControls.enableDamping = true;
 
-    const handleResize = () => {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
+  const handleResize = () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
 
-        uiCamera.aspect = window.innerWidth / window.innerHeight;
-        uiCamera.updateProjectionMatrix();
-        uiRenderer.setSize(window.innerWidth * _uiScale, window.innerHeight * _uiScale);
+    uiCamera.aspect = window.innerWidth / window.innerHeight;
+    uiCamera.updateProjectionMatrix();
+    uiRenderer.setSize(
+      window.innerWidth * _uiScale,
+      window.innerHeight * _uiScale,
+    );
+  };
+  window.addEventListener("resize", handleResize);
+
+  const confirmBoidCount = () => {
+    const numBoidsWPlayer = behaviorParams.numBoids + 1;
+
+    while (numBoidsWPlayer < boids.length) {
+      boids.pop();
+      const b = allBoids.children.pop() as THREE.Mesh;
+      if (!b) return;
+      b.geometry?.dispose();
+      if (Array.isArray(b.material)) {
+        b.material.forEach((m) => m.dispose());
+      } else {
+        b.material?.dispose();
+      }
+    }
+
+    while (numBoidsWPlayer > allBoids.children.length) {
+      const typeIdx = parseInt(RandomWeightedChoice(SHIP_WEIGHTS));
+      const b = {
+        wireframe: false,
+        position: new THREE.Vector3(
+          Math.random() * behaviorParams.bound * 4 - behaviorParams.bound,
+          Math.random() * behaviorParams.bound * 4 - behaviorParams.bound,
+          Math.random() * behaviorParams.bound * 4 - behaviorParams.bound,
+        ).add(cameraBoid.position),
+        rotation: new THREE.Vector3(THREE.MathUtils.degToRad(90), 0, 0),
+        velocity: new THREE.Vector3(
+          Math.random() * 100 - 50,
+          Math.random() * 100 - 50,
+          Math.random() * 100 - 50,
+        ).normalize(),
+        ...shipTypes[typeIdx],
+      };
+      boids.push(b);
+      createBoidMesh(b, allBoids);
+    }
+  };
+
+  const generateRandomStarBody = (
+    position: THREE.Vector3,
+    size: number,
+    moons: number = 0,
+  ): StarBody => {
+    const bodySize = (Math.random() * size) / 2;
+    const color = new THREE.Color(Math.random(), Math.random(), Math.random());
+    const terrainColor = new THREE.Color(
+      Math.random(),
+      Math.random(),
+      Math.random(),
+    );
+
+    return {
+      size: bodySize,
+      color,
+      terrainColor,
+      emissiveColor: color,
+      seaLevel: Math.random(),
+      atmosphereSize: Math.random() * 100,
+      position,
+      lightIntensity: Math.random() * 100,
+      lightRange: Math.random() * 100,
+      speed: Math.random() * 0.01 - 0.02,
+      stars:
+        moons > 0
+          ? { numStars: 150, starRange: 10 }
+          : { numStars: 0, starRange: 0 },
+      orbitingBodies: Array.from({ length: moons }, () =>
+        generateRandomStarBody(
+          new THREE.Vector3(Math.random(), Math.random(), Math.random())
+            .multiplyScalar(bodySize)
+            .addScalar(Math.random() * 5),
+          bodySize,
+        ),
+      ),
     };
-    window.addEventListener("resize", handleResize);
+  };
 
-    const confirmBoidCount = () => {
-        const numBoidsWPlayer = behaviorParams.numBoids + 1;
+  const expandStarBodies = (star: StarBody) => {
+    const numNewStars = 2 * Math.random();
+    for (let i = 0; i < numNewStars; i++) {
+      const newStarDistance = 5 * Math.random() - 5 + behaviorParams.bound * 2;
+      const pos = new THREE.Vector3(
+        2 * Math.random() - 1,
+        2 * Math.random() - 1,
+        2 * Math.random() - 1,
+      )
+        .normalize()
+        .multiplyScalar(newStarDistance)
+        .add(star.position);
 
-        while (numBoidsWPlayer < boids.length) {
-            boids.pop();
-            const b = allBoids.children.pop() as THREE.Mesh;
-            if (!b) return;
-            b.geometry?.dispose();
-            if (Array.isArray(b.material)) {
-                b.material.forEach(m => m.dispose());
+      const newStarBody = generateRandomStarBody(pos, 3, 3 * Math.random());
+      starBodies.push(newStarBody);
+      createStarBody(newStarBody, allStarBodies);
+    }
+  };
+
+  const exploredStarBodies: StarBody[] = [];
+  let animFrameId: number;
+
+  const renderloop = () => {
+    confirmBoidCount();
+
+    // Camera Positioning
+    _offset
+      .copy(boids[0].velocity)
+      .multiplyScalar(-0.05)
+      .add(cameraParams.offset);
+    _targetCamPos.copy(cameraBoid.position).add(_offset);
+    camera.position.lerp(
+      _targetCamPos,
+      cameraParams.freeCamera ? 0 : cameraParams.trailing,
+    );
+
+    _lookTarget
+      .copy(cameraBoid.position)
+      .addScaledVector(boids[0].velocity, 0.5);
+    camera.lookAt(_lookTarget);
+
+    _cameraLookTarget.copy(_lookTarget);
+    camera.worldToLocal(_cameraLookTarget);
+
+    if (keysPressed["ArrowUp"]) _cameraLookTarget.y += 1;
+    if (keysPressed["ArrowDown"]) _cameraLookTarget.y -= 1;
+    if (keysPressed["ArrowLeft"]) _cameraLookTarget.x -= 1;
+    if (keysPressed["ArrowRight"]) _cameraLookTarget.x += 1;
+
+    // Rotate Orbiting Bodies
+    const starBodyChildren = allStarBodies.children;
+    for (let index = 0; index < starBodyChildren.length; index++) {
+      const body =
+        index >= 0
+          ? (starBodyChildren[index] as THREE.Group)
+          : _uiDisplayObject;
+
+      //pop-in
+      if (body.scale.x != 1) {
+        if (body.scale.x < 1) {
+          body.scale.multiplyScalar(1.1);
+        } else {
+          body.scale.set(1, 1, 1);
+        }
+      }
+
+      const children = body.children;
+      let orbitableIndex = 0;
+      for (let ci = 0; ci < children.length; ci++) {
+        const child = children[ci] as THREE.Mesh;
+        if (!child.userData.orbitable) continue;
+
+        //the child is the pivot
+        for (let oi = 0; oi < child.children.length; oi++) {
+          const moon = child.children[oi];
+          if (moon.scale.x != 1) {
+            if (moon.scale.x < 1) {
+              moon.scale.multiplyScalar(1.1);
             } else {
-                b.material?.dispose();
+              moon.scale.set(1, 1, 1);
             }
+          }
+        }
+        child.rotation.y += child.children[0].userData.definition.speed;
+        orbitableIndex += 1;
+      }
+    }
+
+    let focusedStarBody = boids[0].nearestStarBody;
+    const boidChildren = allBoids.children;
+    const pSpaceMaxDist = behaviorParams.personalSpaceMaxDistance;
+    const pSpaceMaxDistSq = pSpaceMaxDist * pSpaceMaxDist;
+
+    // Boid Logic Loop
+    for (let index = 0; index < boidChildren.length; index++) {
+      const boidMesh = boidChildren[index] as THREE.Group;
+      const myBoidObject = boids[index];
+
+      _steering.set(0, 0, 0);
+      _forward.copy(myBoidObject.velocity).normalize();
+
+      let starDistanceSq = Infinity;
+
+      if (boidMesh.scale.x != myBoidObject.size) {
+        if (boidMesh.scale.x < myBoidObject.size) {
+          boidMesh.scale.multiplyScalar(1.1);
+        } else {
+          boidMesh.scale.set(
+            myBoidObject.size,
+            myBoidObject.size,
+            myBoidObject.size,
+          );
+        }
+      }
+
+      // 1. Star Avoidance
+      for (let sbi = 0; sbi < starBodyChildren.length; sbi++) {
+        const starMesh = starBodyChildren[sbi];
+        const myStarBodyObject = starBodies[sbi];
+
+        _diff.subVectors(starMesh.position, boidMesh.position);
+        const distSq = _diff.lengthSq();
+
+        if (distSq < starDistanceSq) {
+          starDistanceSq = distSq;
+          myBoidObject.nearestStarBody = myStarBodyObject;
         }
 
-        while (numBoidsWPlayer > allBoids.children.length) {
-            const typeIdx = parseInt(RandomWeightedChoice(SHIP_WEIGHTS));
-            const b = {
-                wireframe: false,
-                position: new THREE.Vector3(
-                    Math.random() * behaviorParams.bound * 4 - behaviorParams.bound,
-                    Math.random() * behaviorParams.bound * 4 - behaviorParams.bound,
-                    Math.random() * behaviorParams.bound * 4 - behaviorParams.bound
-                ).add(cameraBoid.position),
-                rotation: new THREE.Vector3(THREE.MathUtils.degToRad(90), 0, 0),
-                velocity: new THREE.Vector3(Math.random() * 100 - 50, Math.random() * 100 - 50, Math.random() * 100 - 50).normalize(),
-                ...shipTypes[typeIdx]
-            };
-            boids.push(b);
-            createBoidMesh(b, allBoids);
+        const avoidRadius = myStarBodyObject.size * 5;
+        if (distSq < avoidRadius * avoidRadius) {
+          const dist = Math.sqrt(distSq);
+          _pushAway.copy(_diff).negate().normalize();
+          _pushAway.multiplyScalar(
+            ((avoidRadius - dist) / myStarBodyObject.size) * 1.5,
+          );
+          _steering.add(_pushAway);
         }
-    };
+      }
 
-    const generateRandomStarBody = (position: THREE.Vector3, size: number, moons: number = 0): StarBody => {
-        const bodySize = Math.random() * size / 2;
-        const color = new THREE.Color(Math.random(), Math.random(), Math.random());
-        const terrainColor = new THREE.Color(Math.random(), Math.random(), Math.random());
+      // 2. Boid-to-Boid Interactions
+      for (let obi = 0; obi < boidChildren.length; obi++) {
+        if (index === obi) continue;
 
-        return {
-            size: bodySize,
-            color,
-            terrainColor,
-            emissiveColor: color,
-            seaLevel: Math.random(),
-            atmosphereSize: Math.random() * 100,
-            position,
-            lightIntensity: Math.random() * 100,
-            lightRange: Math.random() * 100,
-            speed: Math.random() * 0.01 - 0.02,
-            stars: moons > 0 ? { numStars: 150, starRange: 10 } : { numStars: 0, starRange: 0 },
-            orbitingBodies: Array.from({ length: moons }, () =>
-                generateRandomStarBody(
-                    new THREE.Vector3(Math.random(), Math.random(), Math.random())
-                        .multiplyScalar(bodySize)
-                        .addScalar(Math.random() * 5),
-                    bodySize
-                )
-            )
-        };
-    };
+        const otherBoidMesh = boidChildren[obi];
+        const myOtherBoidObject = boids[obi];
 
-    const expandStarBodies = (star: StarBody) => {
-        const numNewStars = 2 * Math.random();
-        for (let i = 0; i < numNewStars; i++) {
-            const newStarDistance = (5 * Math.random() - 5) + behaviorParams.bound * 2;
-            const pos = new THREE.Vector3(
-                2 * Math.random() - 1,
-                2 * Math.random() - 1,
-                2 * Math.random() - 1
-            ).normalize().multiplyScalar(newStarDistance).add(star.position);
+        _v1.copy(otherBoidMesh.position).add(myOtherBoidObject.velocity);
+        _diff.subVectors(_v1, boidMesh.position);
 
-            const newStarBody = generateRandomStarBody(pos, 3, 3 * Math.random());
-            starBodies.push(newStarBody);
-            createStarBody(newStarBody, allStarBodies);
-        }
-    };
+        const distSq = _diff.lengthSq();
+        if (distSq === 0) continue;
 
-    const exploredStarBodies: StarBody[] = [];
-    let animFrameId: number;
+        const dist = Math.sqrt(distSq);
+        _v1.copy(_diff).divideScalar(dist); // Normalized diff
+        const dot = _forward.dot(_v1);
 
-    const renderloop = () => {
-        confirmBoidCount();
-
-        // Camera Positioning
-        _offset.copy(boids[0].velocity).multiplyScalar(-0.05).add(cameraParams.offset);
-        _targetCamPos.copy(cameraBoid.position).add(_offset);
-        camera.position.lerp(_targetCamPos, cameraParams.freeCamera ? 0 : cameraParams.trailing);
-
-        _lookTarget.copy(cameraBoid.position).addScaledVector(boids[0].velocity, 0.5);
-        camera.lookAt(_lookTarget);
-
-        _cameraLookTarget.copy(_lookTarget);
-        camera.worldToLocal(_cameraLookTarget);
-
-        if (keysPressed['ArrowUp']) _cameraLookTarget.y += 1;
-        if (keysPressed['ArrowDown']) _cameraLookTarget.y -= 1;
-        if (keysPressed['ArrowLeft']) _cameraLookTarget.x -= 1;
-        if (keysPressed['ArrowRight']) _cameraLookTarget.x += 1;
-
-        // Rotate Orbiting Bodies
-        const starBodyChildren = allStarBodies.children;
-        for (let index = 0; index < starBodyChildren.length; index++) {
-            const body = index >= 0 ? starBodyChildren[index] as THREE.Group : _uiDisplayObject;
-
-            //pop-in
-            if (body.scale.x != 1) {
-                if (body.scale.x < 1) {
-                    body.scale.multiplyScalar(1.1)
-                } else {
-                    body.scale.set(1, 1, 1)
-                }
-            }
-
-            const children = body.children;
-            let orbitableIndex = 0
-            for (let ci = 0; ci < children.length; ci++) {
-                const child = children[ci] as THREE.Mesh;
-                if (!child.userData.orbitable) continue;
-
-                //the child is the pivot
-                for (let oi = 0; oi < child.children.length; oi++) {
-                    const moon = child.children[oi]
-                    if (moon.scale.x != 1) {
-                        if (moon.scale.x < 1) {
-                            moon.scale.multiplyScalar(1.1)
-                        } else {
-                            moon.scale.set(1, 1, 1)
-                        }
-                    }
-                }
-                child.rotation.y += child.children[0].userData.definition.speed
-                orbitableIndex += 1;
-            }
+        // Friendly Attraction
+        if (
+          myBoidObject.chassis.geometry ===
+            myOtherBoidObject.chassis.geometry &&
+          dot > behaviorParams.friendlyDot &&
+          dist < behaviorParams.friendlinessRange &&
+          Math.abs(index - obi) <
+            behaviorParams.numBoids * behaviorParams.friendliness
+        ) {
+          _steering.addScaledVector(
+            _v1,
+            behaviorParams.friendlyStrength * dist,
+          );
         }
 
-        let focusedStarBody = boids[0].nearestStarBody;
-        const boidChildren = allBoids.children;
-        const pSpaceMaxDist = behaviorParams.personalSpaceMaxDistance;
-        const pSpaceMaxDistSq = pSpaceMaxDist * pSpaceMaxDist;
+        // Separation & Alignment
+        if (distSq < pSpaceMaxDistSq) {
+          const factor = (pSpaceMaxDist - dist) / pSpaceMaxDist;
 
-        // Boid Logic Loop
-        for (let index = 0; index < boidChildren.length; index++) {
-            const boidMesh = boidChildren[index] as THREE.Group;
-            const myBoidObject = boids[index];
+          if (dot > behaviorParams.personalSpaceDot) {
+            _pushAway.copy(_v1).negate().multiplyScalar(factor);
+            _steering.add(_pushAway);
+          }
 
-            _steering.set(0, 0, 0);
-            _forward.copy(myBoidObject.velocity).normalize();
-
-            let starDistanceSq = Infinity;
-
-            if (boidMesh.scale.x != myBoidObject.size) {
-                if (boidMesh.scale.x < myBoidObject.size) {
-                    boidMesh.scale.multiplyScalar(1.1)
-                } else {
-                    boidMesh.scale.set(myBoidObject.size, myBoidObject.size, myBoidObject.size)
-                }
-            }
-
-            // 1. Star Avoidance
-            for (let sbi = 0; sbi < starBodyChildren.length; sbi++) {
-                const starMesh = starBodyChildren[sbi];
-                const myStarBodyObject = starBodies[sbi];
-
-                _diff.subVectors(starMesh.position, boidMesh.position);
-                const distSq = _diff.lengthSq();
-
-                if (distSq < starDistanceSq) {
-                    starDistanceSq = distSq;
-                    myBoidObject.nearestStarBody = myStarBodyObject;
-                }
-
-                const avoidRadius = myStarBodyObject.size * 5;
-                if (distSq < avoidRadius * avoidRadius) {
-                    const dist = Math.sqrt(distSq);
-                    _pushAway.copy(_diff).negate().normalize();
-                    _pushAway.multiplyScalar(((avoidRadius - dist) / myStarBodyObject.size) * 1.5);
-                    _steering.add(_pushAway);
-                }
-            }
-
-            // 2. Boid-to-Boid Interactions
-            for (let obi = 0; obi < boidChildren.length; obi++) {
-                if (index === obi) continue;
-
-                const otherBoidMesh = boidChildren[obi];
-                const myOtherBoidObject = boids[obi];
-
-                _v1.copy(otherBoidMesh.position).add(myOtherBoidObject.velocity);
-                _diff.subVectors(_v1, boidMesh.position);
-
-                const distSq = _diff.lengthSq();
-                if (distSq === 0) continue;
-
-                const dist = Math.sqrt(distSq);
-                _v1.copy(_diff).divideScalar(dist); // Normalized diff
-                const dot = _forward.dot(_v1);
-
-                // Friendly Attraction
-                if (
-                    myBoidObject.chassis.geometry === myOtherBoidObject.chassis.geometry &&
-                    dot > behaviorParams.friendlyDot &&
-                    dist < behaviorParams.friendlinessRange &&
-                    Math.abs(index - obi) < behaviorParams.numBoids * behaviorParams.friendliness
-                ) {
-                    _steering.addScaledVector(_v1, behaviorParams.friendlyStrength * dist);
-                }
-
-                // Separation & Alignment
-                if (distSq < pSpaceMaxDistSq) {
-                    const factor = (pSpaceMaxDist - dist) / pSpaceMaxDist;
-
-                    if (dot > behaviorParams.personalSpaceDot) {
-                        _pushAway.copy(_v1).negate().multiplyScalar(factor);
-                        _steering.add(_pushAway);
-                    }
-
-                    if (dot > behaviorParams.windDot) {
-                        _influence.copy(myOtherBoidObject.velocity).multiplyScalar(factor);
-                        _steering.add(_influence);
-                    }
-                }
-            }
-
-            // 3. Boundary Avoidance
-            const nearestStarPos = myBoidObject.nearestStarBody?.position ?? _zeroVector;
-            const pad = behaviorParams.boundPadding;
-            const b = behaviorParams.bound;
-
-            if (b - Math.abs(nearestStarPos.x - boidMesh.position.x) < pad) _steering.x -= Math.sign(boidMesh.position.x) * Math.abs(boidMesh.position.x) * 50;
-            if (b - Math.abs(nearestStarPos.y - boidMesh.position.y) < pad) _steering.y -= Math.sign(boidMesh.position.y) * Math.abs(boidMesh.position.y) * 50;
-            if (b - Math.abs(nearestStarPos.z - boidMesh.position.z) < pad) _steering.z -= Math.sign(boidMesh.position.z) * Math.abs(boidMesh.position.z) * 50;
-
-            // 4. Movement Execution
-            const isPlayerKey = keysPressed['ArrowUp'] || keysPressed['ArrowDown'] || keysPressed['ArrowLeft'] || keysPressed['ArrowRight'];
-
-            if (isPlayerKey && index === 0) {
-                _playerTarget.copy(camera.localToWorld(_cameraLookTarget));
-                _steering.subVectors(_playerTarget, _lookTarget).normalize().multiplyScalar(behaviorParams.steeringStrength);
-                myBoidObject.velocity.add(_steering).normalize();
-            } else if (_steering.lengthSq() > 0) {
-                _steering.normalize().multiplyScalar(behaviorParams.steeringStrength);
-                myBoidObject.velocity.add(_steering).normalize();
-            }
-
-            if (myBoidObject.velocity.lengthSq() > 0) {
-                boidMesh.quaternion.setFromUnitVectors(_facingUser, myBoidObject.velocity);
-            }
-
-            // Wing Flap Rotation
-            const children = boidMesh.children;
-            for (let i = 0; i < children.length; i++) {
-                if (children[i].userData.wing) {
-                    children[i].rotation.x = THREE.MathUtils.lerp(children[i].rotation.x, myBoidObject.velocity.y * 0.5, 0.1);
-                }
-            }
-
-            boidMesh.position.addScaledVector(myBoidObject.velocity, myBoidObject.speed);
-            myBoidObject.position.copy(boidMesh.position);
+          if (dot > behaviorParams.windDot) {
+            _influence.copy(myOtherBoidObject.velocity).multiplyScalar(factor);
+            _steering.add(_influence);
+          }
         }
+      }
 
-        // Universe Expansion Trigger
-        const leaderNearest = boids[0].nearestStarBody;
-        if (leaderNearest && leaderNearest !== focusedStarBody && !exploredStarBodies.includes(leaderNearest) && exploredStarBodies.length < 15) {
-            exploredStarBodies.push(leaderNearest);
-            expandStarBodies(leaderNearest);
+      // 3. Boundary Avoidance
+      const nearestStarPos =
+        myBoidObject.nearestStarBody?.position ?? _zeroVector;
+      const pad = behaviorParams.boundPadding;
+      const b = behaviorParams.bound;
+
+      if (b - Math.abs(nearestStarPos.x - boidMesh.position.x) < pad)
+        _steering.x -=
+          Math.sign(boidMesh.position.x) * Math.abs(boidMesh.position.x) * 50;
+      if (b - Math.abs(nearestStarPos.y - boidMesh.position.y) < pad)
+        _steering.y -=
+          Math.sign(boidMesh.position.y) * Math.abs(boidMesh.position.y) * 50;
+      if (b - Math.abs(nearestStarPos.z - boidMesh.position.z) < pad)
+        _steering.z -=
+          Math.sign(boidMesh.position.z) * Math.abs(boidMesh.position.z) * 50;
+
+      // 4. Movement Execution
+      const isPlayerKey =
+        keysPressed["ArrowUp"] ||
+        keysPressed["ArrowDown"] ||
+        keysPressed["ArrowLeft"] ||
+        keysPressed["ArrowRight"];
+
+      if (isPlayerKey && index === 0) {
+        _playerTarget.copy(camera.localToWorld(_cameraLookTarget));
+        _steering
+          .subVectors(_playerTarget, _lookTarget)
+          .normalize()
+          .multiplyScalar(behaviorParams.steeringStrength);
+        myBoidObject.velocity.add(_steering).normalize();
+      } else if (_steering.lengthSq() > 0) {
+        _steering.normalize().multiplyScalar(behaviorParams.steeringStrength);
+        myBoidObject.velocity.add(_steering).normalize();
+      }
+
+      if (myBoidObject.velocity.lengthSq() > 0) {
+        boidMesh.quaternion.setFromUnitVectors(
+          _facingUser,
+          myBoidObject.velocity,
+        );
+      }
+
+      // Wing Flap Rotation
+      const children = boidMesh.children;
+      for (let i = 0; i < children.length; i++) {
+        if (children[i].userData.wing) {
+          children[i].rotation.x = THREE.MathUtils.lerp(
+            children[i].rotation.x,
+            myBoidObject.velocity.y * 0.5,
+            0.1,
+          );
         }
+      }
 
-        if (cameraParams.cinematicMode) orbitControls.update();
-        uiOrbitControls.update();
-        renderer.render(scene, camera);
+      boidMesh.position.addScaledVector(
+        myBoidObject.velocity,
+        myBoidObject.speed,
+      );
+      myBoidObject.position.copy(boidMesh.position);
+    }
 
-        if (_selectedIndex >= 0) {
-            if (_uiDisplayObject.scale.x != 1) {
-                _uiDisplayObject.scale.multiplyScalar(1.1)
-            }
-            if (_uiDisplayObject.scale.x > 1) {
-                _uiDisplayObject.scale.setScalar(1)
-            }
-            ui.rotation.y += .005
-            uiRenderer.render(ui, uiCamera);
-            labelRenderer.render(ui, uiCamera);
-        }
-        animFrameId = window.requestAnimationFrame(renderloop);
+    // Universe Expansion Trigger
+    const leaderNearest = boids[0].nearestStarBody;
+    if (
+      leaderNearest &&
+      leaderNearest !== focusedStarBody &&
+      !exploredStarBodies.includes(leaderNearest) &&
+      exploredStarBodies.length < 15
+    ) {
+      exploredStarBodies.push(leaderNearest);
+      expandStarBodies(leaderNearest);
+    }
 
-    };
+    if (cameraParams.cinematicMode) orbitControls.update();
+    uiOrbitControls.update();
+    renderer.render(scene, camera);
 
-    renderloop();
+    if (_selectedIndex >= 0) {
+      if (_uiDisplayObject.scale.x != 1) {
+        _uiDisplayObject.scale.multiplyScalar(1.1);
+      }
+      if (_uiDisplayObject.scale.x > 1) {
+        _uiDisplayObject.scale.setScalar(1);
+      }
+      ui.rotation.y += 0.005;
+      uiRenderer.render(ui, uiCamera);
+      labelRenderer.render(ui, uiCamera);
+    }
+    animFrameId = window.requestAnimationFrame(renderloop);
+  };
 
-    // Return Cleanup Callback for React Unmount
-    return () => {
-        window.cancelAnimationFrame(animFrameId);
-        window.removeEventListener('keydown', handleKeyDown);
-        window.removeEventListener('keyup', handleKeyUp);
-        window.removeEventListener('resize', handleResize);
-        renderer.domElement.removeEventListener('mouseup', registerClick);
-        pane.dispose();
-        orbitControls.dispose();
-        uiOrbitControls.dispose();
-        renderer.dispose();
-        uiRenderer.dispose();
-    };
+  renderloop();
+
+  // Return Cleanup Callback for React Unmount
+  return () => {
+    window.cancelAnimationFrame(animFrameId);
+    window.removeEventListener("keydown", handleKeyDown);
+    window.removeEventListener("keyup", handleKeyUp);
+    window.removeEventListener("resize", handleResize);
+    renderer.domElement.removeEventListener("mouseup", registerClick);
+    pane.dispose();
+    orbitControls.dispose();
+    uiOrbitControls.dispose();
+    renderer.dispose();
+    uiRenderer.dispose();
+  };
 }
