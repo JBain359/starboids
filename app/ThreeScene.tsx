@@ -26,7 +26,7 @@ export default function ThreeScene() {
     }, []);
 
     return <>
-        <canvas className='playCanvas' ref={canvasRef} />;
-        <canvas id='uiCanvas' className='uiCanvas' ref={uiCanvasRef} />;
+        <canvas className='playCanvas' ref={canvasRef} />
+        <canvas id='uiCanvas' className='uiCanvas' ref={uiCanvasRef} />
     </>
 };

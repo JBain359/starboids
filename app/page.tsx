@@ -1,9 +1,5 @@
-import ThreeScene from "./ThreeScene";
+import StartScreen from "./StartScreen";
 
 export default function Home() {
-  return (
-    <div>
-      <ThreeScene></ThreeScene>
-    </div>
-  );
+  return <StartScreen />;
 }

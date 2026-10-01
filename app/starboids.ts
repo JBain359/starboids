@@ -51,7 +51,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
     const behaviorPane = pane.addFolder({ title: 'Boid Behavior', expanded: false });
 
     const behaviorParams = {
-        numBoids: 200,
+        numBoids: 100,
         friendliness: 0.35,
         friendlyStrength: 1,
         friendlinessRange: 5,
@@ -69,6 +69,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
         trailing: 0.02,
         offset: new THREE.Vector3(0, -0.25, 0),
         cinematicMode: true,
+        freeCamera: false,
         cameraQuality: 1
     };
 
@@ -93,6 +94,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
     //     z: { min: -1, max: 1, step: 0.05 }
     // });
     cameraPane.addBinding(cameraParams, 'cinematicMode');
+    cameraPane.addBinding(cameraParams, 'freeCamera');
     cameraPane.addBinding(cameraParams, 'cameraQuality', { min: .2, max: 1, step: 0.05 }).on('change', (ev) => {
         renderer.setSize(window.innerWidth * ev.value, window.innerHeight * ev.value, false);
     });
@@ -383,7 +385,7 @@ export default async function starboids(canvasRef: React.RefObject<HTMLCanvasEle
         // Camera Positioning
         _offset.copy(boids[0].velocity).multiplyScalar(-0.05).add(cameraParams.offset);
         _targetCamPos.copy(cameraBoid.position).add(_offset);
-        camera.position.lerp(_targetCamPos, cameraParams.trailing);
+        camera.position.lerp(_targetCamPos, cameraParams.freeCamera ? 0 : cameraParams.trailing);
 
         _lookTarget.copy(cameraBoid.position).addScaledVector(boids[0].velocity, 0.5);
         camera.lookAt(_lookTarget);

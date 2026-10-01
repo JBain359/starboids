@@ -3,6 +3,7 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  font-family: "Electrolize", Arial, Helvetica, sans-serif;
 }
 
 @theme inline {
@@ -22,12 +23,17 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-
+  font-family: var(--font-electrolize), sans-serif;
+  margin: 0;
+  min-height: 100vh;
 }
 
 .playCanvas {
-  margin: 0;
+  position: fixed;
+  inset: 0;
+  display: block;
+  width: 100vw;
+  height: 100vh;
   overflow: hidden;
 }
 
@@ -43,4 +49,125 @@ body {
 
 .planetLable {
   text-align: center;
+}
+
+.startScreen {
+  position: relative;
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  overflow: hidden;
+  isolation: isolate;
+  background:
+    radial-gradient(ellipse at 52% 48%, rgba(33, 46, 85, .46), transparent 40%),
+    linear-gradient(135deg, #070a13 0%, #0c1020 52%, #090b14 100%);
+  color: #f6f4ef;
+}
+
+.startScreen__content {
+  z-index: 1;
+  width: min(90vw, 560px);
+  padding: 2rem 0;
+  text-align: center;
+}
+
+.startScreen__eyebrow,
+.startScreen__edition,
+.startScreen__hint {
+  color: #aab2cb;
+  font-size: .68rem;
+  font-weight: 600;
+  letter-spacing: .24em;
+  text-transform: uppercase;
+}
+
+.startScreen__eyebrow {
+  margin: 0 0 1.25rem;
+}
+
+.startScreen h1 {
+  position: relative;
+  left: 50%;
+  width: max-content;
+  max-width: 90vw;
+  margin: 0;
+  font-size: clamp(3.4rem, 10vw, 6.8rem);
+  font-weight: 500;
+  letter-spacing: .15em;
+  line-height: 1;
+  text-align: center;
+  text-indent: 0;
+  transform: translateX(-50%);
+}
+
+.startScreen h1 span {
+  color: #a9bbff;
+}
+
+.startScreen__intro {
+  max-width: 390px;
+  margin: 1.5rem auto 2.2rem;
+  color: #c2c8d8;
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.startScreen__button {
+  display: inline-flex;
+  min-height: 54px;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0 1.5rem;
+  border: 1px solid rgba(196, 208, 255, .65);
+  border-radius: 999px;
+  background: rgba(161, 181, 255, .12);
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: .9rem;
+  letter-spacing: .04em;
+  transition: background .2s ease, border-color .2s ease, transform .2s ease;
+}
+
+.startScreen__button:hover {
+  transform: translateY(-2px);
+  border-color: #d4ddff;
+  background: rgba(161, 181, 255, .24);
+}
+
+.startScreen__button:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 4px;
+}
+
+.startScreen__button span {
+  font-size: 1.1rem;
+}
+
+.startScreen__hint {
+  margin: 1.25rem 0 0;
+  font-size: .58rem;
+  letter-spacing: .16em;
+}
+
+.startScreen__edition {
+  position: absolute;
+  bottom: 1.6rem;
+  left: 2rem;
+  margin: 0;
+  font-size: .56rem;
+  letter-spacing: .18em;
+}
+
+.startScreen__edition span {
+  padding: 0 .45rem;
+  color: #7785b3;
+}
+
+@media (max-width: 600px) {
+  .startScreen__edition {
+    left: 1rem;
+    bottom: 1rem;
+    font-size: .48rem;
+  }
 }
