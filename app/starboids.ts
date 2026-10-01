@@ -37,6 +37,7 @@ const SHIP_WEIGHTS = { 0: 80, 1: 20 };
 export default async function starboids(
   canvasRef: React.RefObject<HTMLCanvasElement | null>,
   uiCanvasRef: React.RefObject<HTMLCanvasElement | null>,
+  onLoadingProgress?: (percent: number, message: string) => void,
 ) {
   if (!canvasRef.current || !uiCanvasRef.current) return;
   console.log("hey!");
@@ -124,22 +125,61 @@ export default async function starboids(
       );
     });
 
-  // Load HDR Environment
+  // Load environment and ship models together, reporting weighted asset progress.
   const hdrLoader = new HDRLoader();
-  const hdr = await hdrLoader.loadAsync(
-    "./assets/lonely_road_afternoon_puresky_4k.hdr",
-  );
-  hdr.mapping = THREE.EquirectangularReflectionMapping;
-  scene.environment = hdr;
-  ui.environment = hdr;
-
-  // Load Meshes in Parallel
   const meshUrls = [
     "./assets/BoidCraft_Chassis.gltf",
     "./assets/BoidCraft_Wing.gltf",
     "./assets/BoidCraftSpeedy.gltf",
   ];
-  const [chassis, wing, speedy] = await Promise.all(meshUrls.map(loadCrocMesh));
+  const assetLabels = ["environment", "chassis", "wings", "scout ship"];
+  const assetWeights = [19_078_891, 12_221, 14_361, 46_107];
+  const assetProgress = [0, 0, 0, 0];
+  const totalAssetWeight = assetWeights.reduce(
+    (sum, weight) => sum + weight,
+    0,
+  );
+
+  const reportAssetProgress = (index: number, fraction: number) => {
+    assetProgress[index] = Math.max(assetProgress[index], fraction);
+    const weightedProgress = assetProgress.reduce(
+      (sum, progress, assetIndex) => sum + progress * assetWeights[assetIndex],
+      0,
+    );
+    const percent = Math.min(
+      90,
+      Math.floor((weightedProgress / totalAssetWeight) * 90),
+    );
+    onLoadingProgress?.(percent, `Loading ${assetLabels[index]}…`);
+  };
+
+  const reportLoaderProgress =
+    (index: number) => (event: ProgressEvent<EventTarget>) => {
+      if (event.total > 0) {
+        reportAssetProgress(index, event.loaded / event.total);
+      }
+    };
+
+  onLoadingProgress?.(0, "Loading environment and ships…");
+  const [hdr, meshes] = await Promise.all([
+    hdrLoader.loadAsync(
+      "./assets/lonely_road_afternoon_puresky_4k.hdr",
+      reportLoaderProgress(0),
+    ),
+    Promise.all(
+      meshUrls.map((url, index) =>
+        loadCrocMesh(url, reportLoaderProgress(index + 1)),
+      ),
+    ),
+  ]);
+  reportAssetProgress(0, 1);
+  meshes.forEach((_, index) => reportAssetProgress(index + 1, 1));
+  onLoadingProgress?.(92, "Preparing galaxy…");
+
+  const [chassis, wing, speedy] = meshes;
+  hdr.mapping = THREE.EquirectangularReflectionMapping;
+  scene.environment = hdr;
+  ui.environment = hdr;
 
   const shipTypes = [
     {
@@ -735,6 +775,7 @@ export default async function starboids(
   };
 
   renderloop();
+  onLoadingProgress?.(100, "Ready");
 
   // Return Cleanup Callback for React Unmount
   return () => {

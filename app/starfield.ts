@@ -219,11 +219,14 @@ export const createStarBody = (body: StarBody, group: THREE.Object3D) => {
   return bodyMesh;
 };
 
-export const loadCrocMesh = async (url: string) => {
+export const loadCrocMesh = async (
+  url: string,
+  onProgress?: (event: ProgressEvent<EventTarget>) => void,
+) => {
   let retGeo: THREE.BufferGeometry;
   let retMat: THREE.Material | null = null;
   try {
-    const loadedScene = await gltfLoader.loadAsync(url);
+    const loadedScene = await gltfLoader.loadAsync(url, onProgress);
     let loadedMesh: THREE.Mesh | null = null;
     loadedScene.scene.traverse((child) => {
       if ((child as THREE.Mesh).isMesh && !loadedMesh) {

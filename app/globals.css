@@ -37,6 +37,76 @@ body {
   overflow: hidden;
 }
 
+.sceneLoading {
+  position: fixed;
+  z-index: 5;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  padding: 2rem;
+  background:
+    radial-gradient(
+      ellipse at 52% 48%,
+      rgba(33, 46, 85, 0.46),
+      transparent 40%
+    ),
+    linear-gradient(135deg, #070a13 0%, #0c1020 52%, #090b14 100%);
+  color: #f6f4ef;
+  font-family: var(--font-electrolize), sans-serif;
+  text-align: center;
+}
+
+.sceneLoading__eyebrow,
+.sceneLoading__percent {
+  color: #aab2cb;
+  font-size: 0.68rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+.sceneLoading__eyebrow {
+  margin: 0 0 1.5rem;
+}
+
+.sceneLoading__message {
+  margin: 0 0 1.25rem;
+  color: #c2c8d8;
+  font-size: 1rem;
+}
+
+.sceneLoading__track {
+  width: min(320px, 75vw);
+  height: 3px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: rgba(196, 208, 255, 0.18);
+}
+
+.sceneLoading__track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #a9bbff;
+  transition: width 0.15s ease-out;
+}
+
+.sceneLoading__percent {
+  margin: 0.75rem 0 0;
+  font-size: 0.58rem;
+}
+
+.sceneLoading__retry {
+  margin-top: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  border: 1px solid rgba(196, 208, 255, 0.65);
+  border-radius: 999px;
+  background: rgba(161, 181, 255, 0.12);
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+
 .uiCanvas {
   position: fixed;
   bottom: 0;
